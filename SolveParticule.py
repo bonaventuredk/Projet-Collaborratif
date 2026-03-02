@@ -338,9 +338,9 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 34   # charge nulle
-n2 = 33   # charge positive (les Na+)
-n3 = 33  # charge négative (les Cl-)
+n1 = 340   # charge nulle
+n2 = 330   # charge positive (les Na+)
+n3 = 330  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
