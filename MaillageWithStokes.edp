@@ -1,0 +1,207 @@
+// ==========================================
+// Paramètres généraux du domaine
+// ==========================================
+real D = 0.0036;  // soit 3.6 mm      // Diamètre :Largeur du domaine en (2D)
+real L = 0.027;           // Longueur totale du domaine 
+
+// Paramètres des murs
+real lwall = D/10;      // Hauteur des murs
+real Lwall = L/8;       // Position horizontale du mur (distance depuis la gauche)
+real eta = D/10;        // Largeur du mur
+real R = eta/2;          // Rayon du demi cercle à la pointe (petit rayon du futur ellipse)
+real delta = 6*R;         // Profondeur de la pointe (grand rayon du futur ellipse)
+
+// Constante unique pour la position verticale du mur
+real xmur = L - Lwall;
+
+// ==========================================
+// Bord du bas
+// ==========================================
+border c1 (t = 0, xmur) { x = t; y = 0; label = 1; };        // Partie gauche avant le mur
+border c2(t = xmur, L) { x = t; y = 0; label = 2; };        // Partie droite après le mur
+
+// ==========================================
+// Bord droit - côté bas
+// ==========================================
+border c3 (t = 0, lwall) { x = L; y = t; label = 3; };       // Bord vertical bas du côté droit
+
+// ==========================================
+// Mur du bas - pointe (demi-cercle) côté droit
+// ==========================================
+border c4 (t = L, xmur) { x = t; y = lwall; label = 4; };                     // Début du mur bas
+border c5 (t = 3*pi/2, pi+pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 5; };  
+border c6 (t = pi+pi/3, pi+pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 6; };  
+border c7 (t = pi+pi/6, pi-pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 7; };  
+border c8 (t = pi-pi/6, pi-pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 8; };
+border c9 (t = pi-pi/3, pi/2) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 9; };  
+border c10 (t = xmur, L) { x = t; y = lwall + eta; label = 10; };             // Fin du mur bas
+
+// ==========================================
+// Entre murs
+// ==========================================
+border c11 (t = lwall + eta, D - lwall - eta) { x = L; y = t; label = 11; }; // Bord vertical entre bas et haut
+
+// ==========================================
+// Mur du haut - côté droit
+// ==========================================
+border c12 (t = L, xmur) { x = t; y = D - lwall - eta; label = 12; };        // Début du mur haut
+border c13 (t =  3*pi/2, pi+pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 13; }; 
+border c14 (t =  pi+pi/3, pi+pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 14; }; 
+border c15 (t = pi+pi/6, pi-pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 15; }; 
+border c16 (t = pi-pi/6, pi-pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 16; }; 
+border c17 (t = pi-pi/3, pi/2) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 17; }; 
+border c18 (t = xmur, L) { x = t; y = D - lwall; label = 18; };              // Fin du mur haut
+
+// ==========================================
+// Bord droit - côté haut
+// ==========================================
+border c19 (t = D - lwall, D) { x = L; y = t; label = 19; }; // Bord vertical haut côté droit
+
+// ==========================================
+// Bord du haut
+// ==========================================
+border c20 (t = L, xmur) { x = t; y = D; label = 20; };   // Partie droite au-dessus des murs
+border c21 (t = xmur, 0) { x = t; y = D; label = 21; };   // Partie gauche après les murs
+
+// ==========================================
+// Bord gauche
+// ==========================================
+border c22 (t = D, 0) { x = 0; y = t; label = 22; };      // Bord vertical gauche
+
+// ==========================================
+// Construction du maillage
+// ==========================================
+
+// ==========================================
+// Calcul des nombres de subdivisions (entiers)
+// ==========================================
+real N = 5000; //soit h = 0.005 // pour c5 et c9
+real Npointe0 = 7500; // pour c5, c9, c13 et c17
+real Npointe1 = 5000; // pour c6, c8, c14 et c16
+real Npointe2 = 2500; // pour c7 et c15
+
+// ==========================================
+// Discrétisation adaptative des arrondis
+// Formule de Ramanujan 
+// ==========================================
+
+real a = delta;   // grand demi-axe
+real b = R;      // petit demi-axe
+
+// Paramètre de Ramanujan
+real h = pow(a-b,2)/pow(a+b,2);
+
+// Périmètre total ellipse 
+real Pellipse = pi*(a+b)*(1 + (3*h)/(10 + sqrt(4 - 3*h)));
+
+// Pas angulaire de chaque portion
+real dt1 = abs(3*pi/2 - (pi+pi/3));
+real dt2 = abs((pi+pi/3) - (pi+pi/6));
+real dt3 = abs((pi+pi/6) - (pi-pi/6));
+real dt4 = abs((pi-pi/6) - (pi-pi/3));
+real dt5 = abs((pi-pi/3) - pi/2);
+
+// Longueur de chaque arc 
+real Lc1 = Pellipse * dt1 / (2*pi);
+real Lc2 = Pellipse * dt2 / (2*pi);
+real Lc3 = Pellipse * dt3 / (2*pi);
+real Lc4 = Pellipse * dt4 / (2*pi);
+real Lc5 = Pellipse * dt5 / (2*pi);
+
+// Nombre de subdivisions proportionnel
+int n1 = ceil(Lc1 * Npointe0);
+int n2 = ceil(Lc2 * Npointe1);
+int n3 = ceil(Lc3 * Npointe2);
+int n4 = ceil(Lc4 * Npointe1);
+int n5 = ceil(Lc5 * Npointe0);
+
+mesh Tube2D = buildmesh(
+  c1(xmur*N) + c2((Lwall*N))                // bas
+  + c3(lwall*N) + c4(Lwall*N)                 // début mur bas
+  + c5(n1) + c6(n2) + c7(n3) + c8(n4) + c9(n5)   // arrondi bas 
+  + c10(Lwall*N) + c11((D-2*lwall-2*eta)*N)                  // fin mur bas + entre murs
+  + c12(Lwall*N)                          // début mur haut
+  + c13(n1) + c14(n2) + c15(n3) + c16(n4) + c17(n5)   // arrondi haut
+  + c18(Lwall*N) + c19(lwall*N)                   // fin mur haut + bord haut droit
+  + c20(Lwall*N) + c21(xmur*N) + c22(D*N)       // haut et gauche
+);
+plot(Tube2D, wait = 1);
+// Sauvegarde du maillage au format FreeFem
+savemesh(Tube2D, "Maillage.mesh");
+
+// Sauvegarde des coordonnées des sommets
+
+ofstream fileNodes("nodes.txt");
+// La boucle suivante parcourt tous les sommets du maillage.
+for (int i = 0; i < Tube2D.nv; i++) {
+    fileNodes << Tube2D(i).x << " " << Tube2D(i).y << endl;
+}
+// ==========================================
+// Résolution des équations de Stokes
+// ==========================================
+
+// Paramètres physiques
+real nu = 1;          // viscosité cinématique (à ajuster selon l'échelle)
+
+real debit = -2.78e-6; // 10 L/h
+real deltaP = -24*nu*L*debit/(D^3);
+real Pe = deltaP/2;
+real Ps = -deltaP/2;
+
+
+// Profil de vitesse parabolique (Poiseuille) à l'entrée et à la sortie
+// On suppose que la hauteur du canal est D, et la longueur L
+func uinx = deltaP * y * (D - y) / (4 * L); // vitesse horizontale
+
+// Espaces d'éléments finis (Taylor-Hood P2-P1)
+fespace Vh2(Tube2D, P2);   // pour les composantes de vitesse
+fespace Vh(Tube2D, P1);    // pour la pression
+
+Vh2 ux, uy;                // solutions vitesse
+Vh p;                      // solution pression
+Vh2 vx, vy;                // fonctions test vitesse
+Vh q;                      // fonction test pression
+
+// Problème variationnel de Stokes
+
+problem Stokes ([ux, uy, p], [vx, vy, q]) =
+    int2d(Tube2D)(
+        nu * (dx(ux)*dx(vx) + dy(ux)*dy(vx) + dx(uy)*dx(vy) + dy(uy)*dy(vy))
+        - p * (dx(vx) + dy(vy))
+        - q * (dx(ux) + dy(uy))
+        //- 1e-12 * p * q          // pénalisation pour fixer la constante de pression
+    )
+    // Conditions de Dirichlet :
+    // Entrée (label 22)
+    + on(22, ux=uinx, uy=0)
+    + on(22, p = Pe)
+    // Sortie (labels 3, 11, 19)
+    + on(3,11,19, ux=uinx, uy=0)
+    + on(11, p = Ps)
+    // Parois (tous les autres labels)
+    + on(1,2,4,5,6,7,8,9,10,12,13,14,15,16,17,18,20,21, ux=0, uy=0);
+
+// Résolution
+Stokes;
+
+// Affichage des résultats
+//plot(ux, value=1, fill=1, wait=1, cmm="Vitesse horizontale ux");
+//plot(uy, value=1, fill=1, wait=1, cmm="Vitesse verticale uy");
+plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
+//plot(p, value=1, fill=1, wait=1, cmm="Pression");
+
+// Sauvegarde des champs dans des fichiers texte (1 valeur par ligne)
+
+ofstream fileUx("ux.txt");
+ofstream fileUy("uy.txt");
+
+for (int i = 0; i < Tube2D.nv; i++) {
+    real xi = Tube2D(i).x;
+    real yi = Tube2D(i).y;
+
+    fileUx << ux(xi, yi) << endl;
+    fileUy << uy(xi, yi) << endl;
+}
+ofstream fileP("p.txt");
+for (int i = 0; i < p[].n; i++)
+    fileP << p[][i] << endl;
