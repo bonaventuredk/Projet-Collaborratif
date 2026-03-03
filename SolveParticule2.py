@@ -275,6 +275,97 @@ def damping_y(y, Uy, D, charge_sign, gamma_max=1000.0, delta_zone=4e-4):
             return 0.0  # aucune action
 
     return -damping * Uy
+def damping_internal_walls(X, U,
+                           gamma_max=1000.0,
+                           delta_zone=4e-4):
+    """
+    Amortissement géométrique (indépendant de la charge)
+    sur les parois internes et les demi-ellipses.
+    """
+
+    x, y, z = X
+    Ux, Uy, Uz = U
+
+    damping_force = np.array([0.0, 0.0, 0.0])
+
+    # =====================================================
+    # 1) SEGMENTS HORIZONTAUX INTERNES (x >= xmur)
+    # =====================================================
+    if x >= xmur:
+
+        walls_y = [
+            lwall + eta,
+            D - lwall - eta,
+            lwall + eta,
+            D - lwall - eta
+        ]
+
+        for y_wall in walls_y:
+            dist = abs(y - y_wall)
+
+            if dist < delta_zone:
+                gamma = gamma_max * (delta_zone - dist) / delta_zone
+
+                # normale verticale
+                normal = np.array([0.0, np.sign(y - y_wall), 0.0])
+
+                # projection vitesse sur normale
+                v_normal = np.dot(U, normal)
+
+                damping_force -= gamma * v_normal * normal
+
+    # =====================================================
+    # 2) DEMI-ELLIPSE BAS (coupée en 2 quarts)
+    # =====================================================
+    center_bottom = np.array([xmur, lwall + Rtip, 0.0])
+
+    dx = x - center_bottom[0]
+    dy = y - center_bottom[1]
+
+    r = np.sqrt((dx/delta)**2 + (dy/Rtip)**2)
+
+    if r <= 1.0 and x >= xmur - delta:
+
+        # normale ellipse
+        normal = np.array([
+            dx/(delta**2),
+            dy/(Rtip**2),
+            0.0
+        ])
+        normal = normal / np.linalg.norm(normal)
+
+        v_normal = np.dot(U, normal)
+
+        gamma = gamma_max * (1 - r)
+
+        damping_force -= gamma * v_normal * normal
+
+    # =====================================================
+    # 3) DEMI-ELLIPSE HAUT (coupée en 2 quarts)
+    # =====================================================
+    center_top = np.array([xmur, D - lwall - eta + Rtip, 0.0])
+
+    dx = x - center_top[0]
+    dy = y - center_top[1]
+
+    r = np.sqrt((dx/delta)**2 + (dy/Rtip)**2)
+
+    if r <= 1.0 and x >= xmur - delta:
+
+        normal = np.array([
+            dx/(delta**2),
+            dy/(Rtip**2),
+            0.0
+        ])
+        normal = normal / np.linalg.norm(normal)
+
+        v_normal = np.dot(U, normal)
+
+        gamma = gamma_max * (1 - r)
+
+        damping_force -= gamma * v_normal * normal
+
+    return damping_force
 
 # =========================
 # SIMULATION
@@ -307,11 +398,15 @@ def simulate_particle(X0, U0, charge_sign=1):
         U_int = U[i] + dt*f(U[i])
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
-        # Amortissement vertical
+        # amortissement ancien (bords haut/bas du tube)
         U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
+        
+        # amortissement interne (nouveaux bords)
+        U_new += dt * damping_internal_walls(X[i], U_new)
 
         # Mise à jour
         X[i+1] = X[i] + dt*U_new
+        
         U[i+1] = U_new
 
     return X, U
@@ -321,9 +416,9 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 98   # charge nulle
-n2 = 1   # charge positive (les Na+)
-n3 = 1  # charge négative (les Cl-)
+n1 = 2   # charge nulle
+n2 = 2  # charge positive (les Na+)
+n3 = 2  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
