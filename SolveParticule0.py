@@ -92,7 +92,7 @@ eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
-x_coil = L         # Position de la bobine
+
 
 
 
@@ -234,7 +234,7 @@ xmur = L - Lwall       # Position du mur magnétique
 
 
 # Position de la bobine
-x_coil = L / 5       
+x_coil = L / 5    
 z_coil = 0.0
 
 
@@ -242,13 +242,15 @@ z_coil = 0.0
 # FONCTION D'AMORTISSEMENT 
 # =========================
 
-def damping_y(x, y, Uy, D, charge_sign,
-              gamma_max=1000.0,
-              delta_zone=4e-4,
-              delta_zone2=1e-7,
-              delta_zone3=5e-4,
-              lwall=0.0,
-              eta=0.0):
+def damping_y(y, Uy, D, charge_sign, gamma_max=1000.0, delta_zone=4e-4):
+    """
+    Amortissement sélectif selon :
+    - mur du bas  -> agit seulement sur charges positives
+    - mur du haut -> agit seulement sur charges négatives
+    
+    Notes:
+        Astuces pour éviter que les particules soient attiré par le mauvais bord.
+    """
 
     damping = 0.0
 
@@ -256,86 +258,24 @@ def damping_y(x, y, Uy, D, charge_sign,
     # MUR DU BAS (y = 0)
     # =========================
     if y < delta_zone:
+        # agit seulement si charge positive
         if charge_sign > 0:
             damping = gamma_max * (delta_zone - y) / delta_zone
         else:
-            return 0.0
+            return 0.0  # aucune action
 
     # =========================
     # MUR DU HAUT (y = D)
     # =========================
     elif y > D - delta_zone:
+        # agit seulement si charge négative
         if charge_sign < 0:
             damping = gamma_max * (y - (D - delta_zone)) / delta_zone
         else:
-            return 0.0
+            return 0.0  # aucune action
 
-    # =========================
-    # PAROIS INTERNES (indépendant de la charge)
-    # =========================
-    walls = [
-        lwall,
-        D - lwall,
-        lwall + eta,
-        D - lwall - eta
-    ]
-
-    for ywall in walls:
-
-        # zone sous la paroi
-        if abs(y - ywall) < delta_zone2 and x >= xmur :
-            damping = max(damping,
-                          gamma_max * (delta_zone2 - abs(y - ywall)) / delta_zone2)
-        
-   
     return -damping * Uy
-def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-5):
 
-    dx = X[0] - xc
-    dy = X[1] - yc
-
-    val = (dx/a)**2 + (dy/b)**2
-
-    if val < 1:   # la particule est dans l'ellipse → on corrige
-
-        # angle ellipse
-        theta = np.arctan2(dy / b, dx / a)
-
-        # clamp dans le quart
-        if theta < theta_min:
-            theta = theta_min
-        elif theta > theta_max:
-            theta = theta_max
-
-        # point EXACT sur l'ellipse
-        ex = xc + a * np.cos(theta)
-        ey = yc + b * np.sin(theta)
-
-        # normale extérieure brute
-        nx = np.cos(theta) / a
-        ny = np.sin(theta) / b
-
-        norm = np.sqrt(nx*nx + ny*ny)
-        nx /= norm
-        ny /= norm
-
-        # position légèrement vers l'extérieur
-        X[0] = ex + eps * nx
-        X[1] = ey + eps * ny
-
-        # vecteur tangent
-        tx = -a * np.sin(theta)
-        ty =  b * np.cos(theta)
-        t_norm = np.sqrt(tx*tx + ty*ty)
-        tx /= t_norm
-        ty /= t_norm
-
-        # garder vitesse tangentielle uniquement
-        vt = U[0]*tx + U[1]*ty
-        U[0] = vt * tx
-        U[1] = vt * ty
-
-    return X, U
 # =========================
 # SIMULATION
 # =========================
@@ -344,84 +284,46 @@ dt = 1e-3
 B0 = 200e-7
 
 def simulate_particle(X0, U0, charge_sign=1):
-
     X = np.zeros((Nt,3))
     U = np.zeros((Nt,3))
     X[0] = X0
     U[0] = U0
 
-    # centres des 4 quarts d’ellipse
-    centers = {
-        "BL": (xmur, lwall + Rtip),
-        "BR": (xmur, lwall + Rtip),
-        "TL": (xmur, D - lwall - eta + Rtip),
-        "TR": (xmur, D - lwall - eta + Rtip)
-    }
-
-    # plages d'angles pour chaque quart
-    angles = {
-        "BR": (-np.pi/2, np.pi),
-        "BL": (np.pi, np.pi/2),
-        "TR": (np.pi, np.pi/2),
-        "TL": (-np.pi/2, np.pi)
-    }
-
     for i in range(Nt-1):
-
-        # champ magnétique
+        # Champ magnétique
+        # ici la position de la bobine influence ..., bien regarder 
+        global x_coil, z_coil
+        
+        
+        
         Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
-        B = np.array([Bx,0.0,Bz]) / B0
+        B = np.array([Bx, 0.0, Bz]) / B0
 
+        # ODE Lorentz
         def f(u):
-            return charge_sign * np.cross(u,B)
+            return charge_sign * np.cross(u, B)
 
-        # RK2 vitesse
+        # Méthode semi-implicite
         U_int = U[i] + dt*f(U[i])
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
-        # amortissement Y
-        U_new[1] += dt * damping_y(
-            X[i,0], X[i,1], U_new[1],
-            D, charge_sign,
-            lwall=lwall,
-            eta=eta
-        )
+        # Amortissement vertical
+        U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
 
-        # position provisoire
+        # Mise à jour
         X[i+1] = X[i] + dt*U_new
-
-        # PROJECTION SUR LES 4 QUARTS D’ELLIPSE
-        for key in ["BL","BR","TL","TR"]:
-            xc, yc = centers[key]
-            thmin, thmax = angles[key]
-
-            X[i+1], U_new = stick_and_slide_on_quarter_ellipse(
-                X[i+1], U_new,
-                xc, yc,
-                delta, Rtip,
-                thmin, thmax
-            )
-
-        # collisions murs internes
-        walls = [lwall, D-lwall, lwall+eta, D-lwall-eta]
-
-        if X[i,0] >= 0.022:
-            for ywall in walls:
-                if (X[i,1] - ywall) * (X[i+1,1] - ywall) < 0:
-                    X[i+1,1] = ywall
-                    U_new[1] = 0
-
         U[i+1] = U_new
 
     return X, U
+
 # =========================
 # PARTICULES MULTIPLES (choix utilisateur)
 # =========================
 
 # Nombre de particules
-n1 = 5   # charge nulle
-n2 = 5   # charge positive (les Na+)
-n3 = 5   # charge négative (les Cl-)
+n1 = 3   # charge nulle
+n2 = 3   # charge positive (les Na+)
+n3 = 3  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
@@ -472,7 +374,7 @@ def draw_domain():
     plt.plot(x_tip, y_tip_bottom, 'k')
     plt.plot(x_tip, y_tip_top, 'k')
     plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'r--', linewidth=1) #pour les bleus
-    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'g--', linewidth=1) # pour le milieu
+    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'g-', linewidth=1) # pour le milieu
     plt.plot([xmur-delta, xmur-delta], [D - lwall-eta/2, D], 'b--', linewidth=1) # pour les rouges
 
 # =========================
@@ -549,7 +451,7 @@ if points is not None:
     plt.scatter(points[:,0], points[:,1], color='skyblue', s=10, label='Nœuds du maillage')
 
 # Nombre de points affichés
-n_display = 29
+n_display = 28
 
 # q < 0 (rouge)
 for i, X in enumerate(X_red_list):

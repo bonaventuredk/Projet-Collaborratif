@@ -68,8 +68,8 @@ def load_freefem_data(nodes_file, ux_file, uy_file):
         # Construction de l’interpolateur 2D pour uy
         uy_interp = CloughTocher2DInterpolator(points, uy_data)
 
-        print("Interpolation is useless :", ux_data == ux_interp)
-        print("Interpolation is useless :", uy_data == uy_interp)
+        #print("Interpolation is useless :", ux_data == ux_interp)
+        #print("Interpolation is useless :", uy_data == uy_interp)
 
         # Message de confirmation
         print("Chargement terminé ")
@@ -358,9 +358,9 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 0   # charge nulle
-n2 = 10   # charge positive (les Na+)
-n3 = 10  # charge négative (les Cl-)
+n1 = 5   # charge nulle
+n2 = 5   # charge positive (les Na+)
+n3 = 5  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
@@ -371,29 +371,29 @@ def generate_particles(n, charge_sign):
     y0 = np.logspace(0, 1, num=n, base =b) 
 
 
-    if charge_sign <0 : 
+    if charge_sign < 0 : 
         y0 += charge_sign*np.ones((n))
 
-        print("y0 :", y0)
+        #print("y0 :", y0)
 
         y0 = (D/(b-1))*y0
 
-        print("charge_sign :", charge_sign)
-        print("y0 :", y0)
+        #print("charge_sign :", charge_sign)
+        #print("y0 :", y0)
 
-    else : 
+    else: 
 
         y0 -= np.ones((n))
 
         y0 = (D/(b-1))*y0
 
-        print("charge_sign :", charge_sign)
-        print("y0 :", y0)
+        #print("charge_sign :", charge_sign)
+        #print("y0 :", y0)
 
         y0 *= -charge_sign
 
         y0 += D*np.ones((n))
-        print("y0 :", y0)
+        #print("y0 :", y0)
 
 
     
