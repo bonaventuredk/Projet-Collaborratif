@@ -101,7 +101,7 @@ x_coil = L         # Position de la bobine
 # =========================
 # Constantes physiques et paramètres géométriques
 R_coil = D/3          # Rayon de la spire (en mètres)
-I = 1              # Courant traversant la spire (en ampères)
+I = 1  # ou mu0*I*N*R_coil² / (2*(R² + z²)^(3/2)) ≈ B0            # Courant traversant la spire (en ampères)
 N = 100            # Nombre total de spires
 spacing = 0.001    # Espacement entre les spires (en mètres)
 mu0 = 4 * np.pi * 1e-7   # Perméabilité magnétique du vide (H/m)
@@ -405,7 +405,7 @@ def simulate_particle(X0, U0, charge_sign=1):
         # collisions murs internes
         walls = [lwall, D-lwall, lwall+eta, D-lwall-eta]
 
-        if X[i,0] >= 0.022:
+        if X[i,0] >= xmur - delta:
             for ywall in walls:
                 if (X[i,1] - ywall) * (X[i+1,1] - ywall) < 0:
                     X[i+1,1] = ywall
@@ -419,9 +419,9 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 5   # charge nulle
-n2 = 5   # charge positive (les Na+)
-n3 = 5   # charge négative (les Cl-)
+n1 = 15   # charge nulle
+n2 = 15   # charge positive (les Na+)
+n3 = 15   # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
