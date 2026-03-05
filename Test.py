@@ -181,3 +181,42 @@ def repel_from_wall(x, y, Ux, Uy, wall, d_min=0.02, strength=0.01):
         U = U - 2*np.dot(U, normal)*normal  # reflection
         
     return U
+
+
+def point_segment_distance(p, a, b):
+
+    ap = p - a
+    ab = b - a
+
+    t = np.dot(ap, ab) / np.dot(ab, ab)## = Norm(ap)*cos(PAB)
+    t = np.clip(t, 0, 1) ##
+
+    closest = a + t * ab ## trouve le point le plus proche de P appartenant au segment AB
+    dist = np.linalg.norm(p - closest)
+
+    return dist,closest
+
+def point_segment_distance2(p, a, b):
+
+    ap = p - a
+    ab = b - a
+
+    t = np.dot(ap, ab) / np.dot(ab, ab) ## = Norm(ap)*cos(PAB)
+    t = np.clip(t, 0, 1) ##
+
+
+    dist = ap*np.sqrt(1 - (t/np.linalg.norm(ap))**2)
+
+    return np.linalg.norm(dist)
+
+
+p = np.array([1, 4])
+a= np.array([0,1])
+b=np.array([0,3])
+
+
+print("dist 1 : ", point_segment_distance(p,a,b))
+
+print("dist 1 : ", point_segment_distance2(p,a,b))
+
+
