@@ -68,9 +68,6 @@ def load_freefem_data(nodes_file, ux_file, uy_file):
         # Construction de l’interpolateur 2D pour uy
         uy_interp = CloughTocher2DInterpolator(points, uy_data)
 
-        print("Interpolation is useless :", ux_data == ux_interp)
-        print("Interpolation is useless :", uy_data == uy_interp)
-
         # Message de confirmation
         print("Chargement terminé ")
 
@@ -95,35 +92,7 @@ eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
-x_coil = L / 10         # Longitude de la bobine
-z_coil = 0.0           # Hauteur de la bobine
 
-x_coils = np.array([L/10, L/5,])
-z_coils = np.array([0.0, 0.0])
-
-
-####### Creations des objets murs 
-
-
-theta = np.linspace(3*np.pi/2, np.pi/2, 300)
-x_tip = delta*np.cos(theta) + xmur
-x_tip = np.expand_dims(x_tip, axis = 1)
-y_tip_bottom = Rtip*np.sin(theta) + lwall + Rtip
-y_tip_bottom = np.expand_dims(y_tip_bottom, axis = 1)
-y_tip_top = Rtip*np.sin(theta) + D - lwall - eta + Rtip
-y_tip_top = np.expand_dims(y_tip_top, axis = 1)
-
-x_wall = np.expand_dims(np.linspace(L-L/8, L, 100), axis=1)
-
-bot_bot_wall = np.concatenate((x_wall, (D/10)*np.ones_like(x_wall)),axis = 1)
-mid_bot_wall = np.concatenate((x_tip, y_tip_bottom),axis = 1)
-top_bot_wall = np.concatenate((x_wall, (D/10+ lwall)*np.ones_like(x_wall)),axis = 1)
-bot_wall = np.concatenate((bot_bot_wall, mid_bot_wall, top_bot_wall), axis = 0)
-
-bot_top_wall = np.concatenate((x_wall, (D - 2*D/10)*np.ones_like(x_wall)),axis = 1)
-mid_top_wall = np.concatenate((x_tip, y_tip_top),axis = 1)
-top_top_wall = np.concatenate((x_wall, (D- 2*D/10+ lwall)*np.ones_like(x_wall)),axis = 1)
-top_wall = np.concatenate((bot_top_wall, mid_top_wall, top_top_wall), axis = 0)
 
 
 
@@ -251,38 +220,23 @@ def B_N_spires(x, z):
     return Bx_total, Bz_total
 
 
-def N_B(x_coils , z_coils):
-    """
-    Calcule le champ magnétique total (Bx, Bz) produit par N bobines de n spires
-    placées sur les points de coordonnées x_coils et z_coils.
+# =========================
+# PARAMÈTRES DU DOMAINE
+# =========================
+L = 0.027              # Longueur totale du domaine (m)
+D = 0.0036             # Hauteur totale du domaine (m)
+lwall = D / 10         # Épaisseur caractéristique du mur latéral
+Lwall = L / 8          # Longueur caractéristique du mur
+eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
+Rtip = eta / 2         # Rayon de l'extrémité (tip)
+delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
+xmur = L - Lwall       # Position du mur magnétique
 
-    Paramètres
-    ----------
-    x_coils : float
-        Array contenant les coordonnées horizontales des points d'observations.
-    z_coils : float
-        Array contenant les coordonnées verticales des points d'observations.
 
-    Retour
-    ------
-    Bx_total : float
-        Composante horizontale totale du champ magnétique.
-    Bz_total : float
-        Composante verticale totale du champ magnétique.
+# Position de la bobine
+x_coil = L / 5    
+z_coil = 0.0
 
-    Notes
-    -----
-    - Les spires sont centrées autour de z = 0.
-    - Chaque spire est séparée de la suivante par `spacing`.
-    """
-    Bx_total, Bz_total = 0.0 , 0.0 
-
-    for x, z in (x_coils, z_coils) :
-        bx, bz = B_N_spires(x,z)
-        Bx_total += bx
-        Bz_total += bz
-
-    return Bx_total, Bz_total
 
 # =========================
 # FONCTION D'AMORTISSEMENT 
@@ -322,27 +276,6 @@ def damping_y(y, Uy, D, charge_sign, gamma_max=1000.0, delta_zone=4e-4):
 
     return -damping * Uy
 
-def repel_from_wall(X, U, wall, d_min=0.02, strength=0.1):
-
-    X = X[:2]
-    U = U[:2]
-    
-    # compute distances to all wall points
-    diff = wall - X
-    dist = np.linalg.norm(diff, axis=1)
-    
-    # find closest point
-    idx = np.argmin(dist)
-    d = dist[idx]
-    
-    if d < d_min:
-        normal = X - wall[idx]
-        normal = normal / np.linalg.norm(normal)
-
-        U = U - 2*strength*np.dot(U, normal)*normal  # reflection
-        
-    return U[:2]
-
 # =========================
 # SIMULATION
 # =========================
@@ -359,13 +292,11 @@ def simulate_particle(X0, U0, charge_sign=1):
     for i in range(Nt-1):
         # Champ magnétique
         # ici la position de la bobine influence ..., bien regarder 
-        global x_coils, z_coils
+        global x_coil, z_coil
         
-        Bx, Bz = 0.0 , 0.0
-        for x, z in x_coils, z_coils :
-            bx, bz = B_N_spires(X[i,0] - x, X[i,2] - z)
-            Bx += bx 
-            Bz += bz
+        
+        
+        Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
         B = np.array([Bx, 0.0, Bz]) / B0
 
         # ODE Lorentz
@@ -376,13 +307,8 @@ def simulate_particle(X0, U0, charge_sign=1):
         U_int = U[i] + dt*f(U[i])
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
-        # Contourner les murs au fond 
-        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-4)
-        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-4)
-
         # Amortissement vertical
         U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
-
 
         # Mise à jour
         X[i+1] = X[i] + dt*U_new
@@ -395,42 +321,19 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 5   # charge nulle
-n2 = 10   # charge positive (les Na+)
-n3 = 10  # charge négative (les Cl-)
+n1 = 3   # charge nulle
+n2 = 3   # charge positive (les Na+)
+n3 = 3  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
     X_list = []
     U_list = []
-
-    b = 100
-    y0 = np.logspace(0, 1, num=n, base =b) 
-
-
-    if charge_sign <0 : 
-        y0 += charge_sign*np.ones((n))
-        y0 = (D/(b-1))*y0
-
-
-    elif charge_sign > 0 : 
-
-        y0 -= np.ones((n))
-
-        y0 = (D/(b-1))*y0
-
-        y0 *= -charge_sign
-
-        y0 += D*np.ones((n))
     
-    else :
-        y0 = np.random.uniform(0,D, size=(n))
-
-    
-    for i in range(n):
+    for _ in range(n):
         # Position aléatoire sur le segment (0,0) -> (0,D)
-        #y0 = np.random.uniform(0, D)
-        X0 = np.array([0.0, y0[i], 0.0])
+        y0 = np.random.uniform(0, D)
+        X0 = np.array([0.0, y0, 0.0])
         
         # Vitesse initiale (modifiable si besoin)
         U0 = np.array([1.0, 0.0, 0.0])
@@ -574,10 +477,9 @@ for i, X in enumerate(X_green_list):
 # Bobine (optionnel)
 theta = np.linspace(0, 2*np.pi, 300)
 
-for x_coil in x_coils :
-    x_circ = x_coil + R_coil*np.cos(theta)
-    y_circ = D/2 + R_coil*np.sin(theta)
-    plt.plot(x_circ, y_circ, 'r', label='Bobine')
+x_circ = x_coil + R_coil*np.cos(theta)
+y_circ = D/2 + R_coil*np.sin(theta)
+plt.plot(x_circ, y_circ, 'r', label='Bobine')
 
 plt.xlabel("x (m)")
 plt.ylabel("y (m)")

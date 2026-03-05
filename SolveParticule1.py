@@ -68,6 +68,9 @@ def load_freefem_data(nodes_file, ux_file, uy_file):
         # Construction de l’interpolateur 2D pour uy
         uy_interp = CloughTocher2DInterpolator(points, uy_data)
 
+        #print("Interpolation is useless :", ux_data == ux_interp)
+        #print("Interpolation is useless :", uy_data == uy_interp)
+
         # Message de confirmation
         print("Chargement terminé ")
 
@@ -92,7 +95,35 @@ eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
-x_coil = L         # Position de la bobine
+x_coil = L / 10         # Longitude de la bobine
+z_coil = 0.0           # Hauteur de la bobine
+
+x_coils = np.array([L/10, L/5,])
+z_coils = np.array([0.0, 0.0])
+
+
+####### Creations des objets murs 
+
+
+theta = np.linspace(3*np.pi/2, np.pi/2, 300)
+x_tip = delta*np.cos(theta) + xmur
+x_tip = np.expand_dims(x_tip, axis = 1)
+y_tip_bottom = Rtip*np.sin(theta) + lwall + Rtip
+y_tip_bottom = np.expand_dims(y_tip_bottom, axis = 1)
+y_tip_top = Rtip*np.sin(theta) + D - lwall - eta + Rtip
+y_tip_top = np.expand_dims(y_tip_top, axis = 1)
+
+x_wall = np.expand_dims(np.linspace(L-L/8, L, 100), axis=1)
+
+bot_bot_wall = np.concatenate((x_wall, (D/10)*np.ones_like(x_wall)),axis = 1)
+mid_bot_wall = np.concatenate((x_tip, y_tip_bottom),axis = 1)
+top_bot_wall = np.concatenate((x_wall, (D/10+ lwall)*np.ones_like(x_wall)),axis = 1)
+bot_wall = np.concatenate((bot_bot_wall, mid_bot_wall, top_bot_wall), axis = 0)
+
+bot_top_wall = np.concatenate((x_wall, (D - 2*D/10)*np.ones_like(x_wall)),axis = 1)
+mid_top_wall = np.concatenate((x_tip, y_tip_top),axis = 1)
+top_top_wall = np.concatenate((x_wall, (D- 2*D/10+ lwall)*np.ones_like(x_wall)),axis = 1)
+top_wall = np.concatenate((bot_top_wall, mid_top_wall, top_top_wall), axis = 0)
 
 
 
@@ -101,7 +132,7 @@ x_coil = L         # Position de la bobine
 # =========================
 # Constantes physiques et paramètres géométriques
 R_coil = D/3          # Rayon de la spire (en mètres)
-I = 1  # ou mu0*I*N*R_coil² / (2*(R² + z²)^(3/2)) ≈ B0            # Courant traversant la spire (en ampères)
+I = 1              # Courant traversant la spire (en ampères)
 N = 100            # Nombre total de spires
 spacing = 0.001    # Espacement entre les spires (en mètres)
 mu0 = 4 * np.pi * 1e-7   # Perméabilité magnétique du vide (H/m)
@@ -220,35 +251,52 @@ def B_N_spires(x, z):
     return Bx_total, Bz_total
 
 
-# =========================
-# PARAMÈTRES DU DOMAINE
-# =========================
-L = 0.027              # Longueur totale du domaine (m)
-D = 0.0036             # Hauteur totale du domaine (m)
-lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
-eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
-Rtip = eta / 2         # Rayon de l'extrémité (tip)
-delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
-xmur = L - Lwall       # Position du mur magnétique
+def N_B(x_coils , z_coils):
+    """
+    Calcule le champ magnétique total (Bx, Bz) produit par N bobines de n spires
+    placées sur les points de coordonnées x_coils et z_coils.
 
+    Paramètres
+    ----------
+    x_coils : float
+        Array contenant les coordonnées horizontales des points d'observations.
+    z_coils : float
+        Array contenant les coordonnées verticales des points d'observations.
 
-# Position de la bobine
-x_coil = L / 5       
-z_coil = 0.0
+    Retour
+    ------
+    Bx_total : float
+        Composante horizontale totale du champ magnétique.
+    Bz_total : float
+        Composante verticale totale du champ magnétique.
 
+    Notes
+    -----
+    - Les spires sont centrées autour de z = 0.
+    - Chaque spire est séparée de la suivante par `spacing`.
+    """
+    Bx_total, Bz_total = 0.0 , 0.0 
+
+    for x, z in (x_coils, z_coils) :
+        bx, bz = B_N_spires(x,z)
+        Bx_total += bx
+        Bz_total += bz
+
+    return Bx_total, Bz_total
 
 # =========================
 # FONCTION D'AMORTISSEMENT 
 # =========================
 
-def damping_y(x, y, Uy, D, charge_sign,
-              gamma_max=1000.0,
-              delta_zone=4e-4,
-              delta_zone2=1e-7,
-              delta_zone3=5e-4,
-              lwall=0.0,
-              eta=0.0):
+def damping_y(y, Uy, D, charge_sign, gamma_max=1000.0, delta_zone=4e-4):
+    """
+    Amortissement sélectif selon :
+    - mur du bas  -> agit seulement sur charges positives
+    - mur du haut -> agit seulement sur charges négatives
+    
+    Notes:
+        Astuces pour éviter que les particules soient attiré par le mauvais bord.
+    """
 
     damping = 0.0
 
@@ -256,86 +304,45 @@ def damping_y(x, y, Uy, D, charge_sign,
     # MUR DU BAS (y = 0)
     # =========================
     if y < delta_zone:
+        # agit seulement si charge positive
         if charge_sign > 0:
             damping = gamma_max * (delta_zone - y) / delta_zone
         else:
-            return 0.0
+            return 0.0  # aucune action
 
     # =========================
     # MUR DU HAUT (y = D)
     # =========================
     elif y > D - delta_zone:
+        # agit seulement si charge négative
         if charge_sign < 0:
             damping = gamma_max * (y - (D - delta_zone)) / delta_zone
         else:
-            return 0.0
+            return 0.0  # aucune action
 
-    # =========================
-    # PAROIS INTERNES (indépendant de la charge)
-    # =========================
-    walls = [
-        lwall,
-        D - lwall,
-        lwall + eta,
-        D - lwall - eta
-    ]
-
-    for ywall in walls:
-
-        # zone sous la paroi
-        if abs(y - ywall) < delta_zone2 and x >= xmur :
-            damping = max(damping,
-                          gamma_max * (delta_zone2 - abs(y - ywall)) / delta_zone2)
-        
-   
     return -damping * Uy
-def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-5):
 
-    dx = X[0] - xc
-    dy = X[1] - yc
+def repel_from_wall(X, U, wall, d_min=0.02, strength=0.1):
 
-    val = (dx/a)**2 + (dy/b)**2
+    X = X[:2]
+    U = U[:2]
+    
+    # compute distances to all wall points
+    diff = wall - X
+    dist = np.linalg.norm(diff, axis=1)
+    
+    # find closest point
+    idx = np.argmin(dist)
+    d = dist[idx]
+    
+    if d < d_min:
+        normal = X - wall[idx]
+        normal = normal / np.linalg.norm(normal)
 
-    if val < 1:   # la particule est dans l'ellipse → on corrige
+        U = U - 2*strength*np.dot(U, normal)*normal  # reflection
+        
+    return U[:2]
 
-        # angle ellipse
-        theta = np.arctan2(dy / b, dx / a)
-
-        # clamp dans le quart
-        if theta < theta_min:
-            theta = theta_min
-        elif theta > theta_max:
-            theta = theta_max
-
-        # point EXACT sur l'ellipse
-        ex = xc + a * np.cos(theta)
-        ey = yc + b * np.sin(theta)
-
-        # normale extérieure brute
-        nx = np.cos(theta) / a
-        ny = np.sin(theta) / b
-
-        norm = np.sqrt(nx*nx + ny*ny)
-        nx /= norm
-        ny /= norm
-
-        # position légèrement vers l'extérieur
-        X[0] = ex + eps * nx
-        X[1] = ey + eps * ny
-
-        # vecteur tangent
-        tx = -a * np.sin(theta)
-        ty =  b * np.cos(theta)
-        t_norm = np.sqrt(tx*tx + ty*ty)
-        tx /= t_norm
-        ty /= t_norm
-
-        # garder vitesse tangentielle uniquement
-        vt = U[0]*tx + U[1]*ty
-        U[0] = vt * tx
-        U[1] = vt * ty
-
-    return X, U
 # =========================
 # SIMULATION
 # =========================
@@ -344,94 +351,93 @@ dt = 1e-3
 B0 = 200e-7
 
 def simulate_particle(X0, U0, charge_sign=1):
-
     X = np.zeros((Nt,3))
     U = np.zeros((Nt,3))
     X[0] = X0
     U[0] = U0
 
-    # centres des 4 quarts d’ellipse
-    centers = {
-        "BL": (xmur, lwall + Rtip),
-        "BR": (xmur, lwall + Rtip),
-        "TL": (xmur, D - lwall - eta + Rtip),
-        "TR": (xmur, D - lwall - eta + Rtip)
-    }
-
-    # plages d'angles pour chaque quart
-    angles = {
-        "BR": (-np.pi/2, np.pi),
-        "BL": (np.pi, np.pi/2),
-        "TR": (np.pi, np.pi/2),
-        "TL": (-np.pi/2, np.pi)
-    }
-
     for i in range(Nt-1):
+        # Champ magnétique
+        # ici la position de la bobine influence ..., bien regarder 
+        global x_coils, z_coils
+        
+        Bx, Bz = 0.0 , 0.0
+        for x, z in x_coils, z_coils :
+            bx, bz = B_N_spires(X[i,0] - x, X[i,2] - z)
+            Bx += bx 
+            Bz += bz
+        B = np.array([Bx, 0.0, Bz]) / B0
 
-        # champ magnétique
-        Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
-        B = np.array([Bx,0.0,Bz]) / B0
-
+        # ODE Lorentz
         def f(u):
-            return charge_sign * np.cross(u,B)
+            return charge_sign * np.cross(u, B)
 
-        # RK2 vitesse
+        # Méthode semi-implicite
         U_int = U[i] + dt*f(U[i])
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
-        # amortissement Y
-        U_new[1] += dt * damping_y(
-            X[i,0], X[i,1], U_new[1],
-            D, charge_sign,
-            lwall=lwall,
-            eta=eta
-        )
+        # Contourner les murs au fond 
+        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-4)
+        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-4)
 
-        # position provisoire
+        # Amortissement vertical
+        U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
+
+
+        # Mise à jour
         X[i+1] = X[i] + dt*U_new
-
-        # PROJECTION SUR LES 4 QUARTS D’ELLIPSE
-        for key in ["BL","BR","TL","TR"]:
-            xc, yc = centers[key]
-            thmin, thmax = angles[key]
-
-            X[i+1], U_new = stick_and_slide_on_quarter_ellipse(
-                X[i+1], U_new,
-                xc, yc,
-                delta, Rtip,
-                thmin, thmax
-            )
-
-        # collisions murs internes
-        walls = [lwall, D-lwall, lwall+eta, D-lwall-eta]
-
-        if X[i,0] >= xmur - delta:
-            for ywall in walls:
-                if (X[i,1] - ywall) * (X[i+1,1] - ywall) < 0:
-                    X[i+1,1] = ywall
-                    U_new[1] = 0
-
         U[i+1] = U_new
 
     return X, U
+
 # =========================
 # PARTICULES MULTIPLES (choix utilisateur)
 # =========================
 
 # Nombre de particules
-n1 = 15   # charge nulle
-n2 = 15   # charge positive (les Na+)
-n3 = 15   # charge négative (les Cl-)
+n1 = 5   # charge nulle
+n2 = 5   # charge positive (les Na+)
+n3 = 5  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
     X_list = []
     U_list = []
+
+    b = 100
+    y0 = np.logspace(0, 1, num=n, base =b) 
+
+
+    if charge_sign < 0 : 
+        y0 += charge_sign*np.ones((n))
+
+        #print("y0 :", y0)
+
+        y0 = (D/(b-1))*y0
+
+        #print("charge_sign :", charge_sign)
+        #print("y0 :", y0)
+
+    else: 
+
+        y0 -= np.ones((n))
+
+        y0 = (D/(b-1))*y0
+
+        #print("charge_sign :", charge_sign)
+        #print("y0 :", y0)
+
+        y0 *= -charge_sign
+
+        y0 += D*np.ones((n))
+        #print("y0 :", y0)
+
+
     
-    for _ in range(n):
+    for i in range(n):
         # Position aléatoire sur le segment (0,0) -> (0,D)
-        y0 = np.random.uniform(0, D)
-        X0 = np.array([0.0, y0, 0.0])
+        #y0 = np.random.uniform(0, D)
+        X0 = np.array([0.0, y0[i], 0.0])
         
         # Vitesse initiale (modifiable si besoin)
         U0 = np.array([1.0, 0.0, 0.0])
@@ -472,7 +478,7 @@ def draw_domain():
     plt.plot(x_tip, y_tip_bottom, 'k')
     plt.plot(x_tip, y_tip_top, 'k')
     plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'r--', linewidth=1) #pour les bleus
-    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'g--', linewidth=1) # pour le milieu
+    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'g-', linewidth=1) # pour le milieu
     plt.plot([xmur-delta, xmur-delta], [D - lwall-eta/2, D], 'b--', linewidth=1) # pour les rouges
 
 # =========================
@@ -549,7 +555,7 @@ if points is not None:
     plt.scatter(points[:,0], points[:,1], color='skyblue', s=10, label='Nœuds du maillage')
 
 # Nombre de points affichés
-n_display = 29
+n_display = 28
 
 # q < 0 (rouge)
 for i, X in enumerate(X_red_list):
@@ -575,9 +581,10 @@ for i, X in enumerate(X_green_list):
 # Bobine (optionnel)
 theta = np.linspace(0, 2*np.pi, 300)
 
-x_circ = x_coil + R_coil*np.cos(theta)
-y_circ = D/2 + R_coil*np.sin(theta)
-plt.plot(x_circ, y_circ, 'r', label='Bobine')
+for x_coil in x_coils :
+    x_circ = x_coil + R_coil*np.cos(theta)
+    y_circ = D/2 + R_coil*np.sin(theta)
+    plt.plot(x_circ, y_circ, 'r', label='Bobine')
 
 plt.xlabel("x (m)")
 plt.ylabel("y (m)")
