@@ -95,8 +95,11 @@ eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
-x_coil = L / 100         # Longitude de la bobine
+x_coil = L / 10         # Longitude de la bobine
 z_coil = 0.0           # Hauteur de la bobine
+
+x_coils = np.array([L/10, L/5,])
+z_coils = np.array([0.0, 0.0])
 
 
 ####### Creations des objets murs 
@@ -248,6 +251,38 @@ def B_N_spires(x, z):
     return Bx_total, Bz_total
 
 
+def N_B(x_coils , z_coils):
+    """
+    Calcule le champ magnétique total (Bx, Bz) produit par N bobines de n spires
+    placées sur les points de coordonnées x_coils et z_coils.
+
+    Paramètres
+    ----------
+    x_coils : float
+        Array contenant les coordonnées horizontales des points d'observations.
+    z_coils : float
+        Array contenant les coordonnées verticales des points d'observations.
+
+    Retour
+    ------
+    Bx_total : float
+        Composante horizontale totale du champ magnétique.
+    Bz_total : float
+        Composante verticale totale du champ magnétique.
+
+    Notes
+    -----
+    - Les spires sont centrées autour de z = 0.
+    - Chaque spire est séparée de la suivante par `spacing`.
+    """
+    Bx_total, Bz_total = 0.0 , 0.0 
+
+    for x, z in (x_coils, z_coils) :
+        bx, bz = B_N_spires(x,z)
+        Bx_total += bx
+        Bz_total += bz
+
+    return Bx_total, Bz_total
 
 # =========================
 # FONCTION D'AMORTISSEMENT 
@@ -324,11 +359,13 @@ def simulate_particle(X0, U0, charge_sign=1):
     for i in range(Nt-1):
         # Champ magnétique
         # ici la position de la bobine influence ..., bien regarder 
-        global x_coil, z_coil
+        global x_coils, z_coils
         
-        
-        
-        Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
+        Bx, Bz = 0.0 , 0.0
+        for x, z in x_coils, z_coils :
+            bx, bz = B_N_spires(X[i,0] - x, X[i,2] - z)
+            Bx += bx 
+            Bz += bz
         B = np.array([Bx, 0.0, Bz]) / B0
 
         # ODE Lorentz
@@ -340,8 +377,8 @@ def simulate_particle(X0, U0, charge_sign=1):
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
         # Contourner les murs au fond 
-        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-3)
-        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-3)
+        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-4)
+        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-4)
 
         # Amortissement vertical
         U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
@@ -358,7 +395,7 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 0   # charge nulle
+n1 = 5   # charge nulle
 n2 = 10   # charge positive (les Na+)
 n3 = 10  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
@@ -373,28 +410,21 @@ def generate_particles(n, charge_sign):
 
     if charge_sign <0 : 
         y0 += charge_sign*np.ones((n))
-
-        print("y0 :", y0)
-
         y0 = (D/(b-1))*y0
 
-        print("charge_sign :", charge_sign)
-        print("y0 :", y0)
 
-    else : 
+    elif charge_sign > 0 : 
 
         y0 -= np.ones((n))
 
         y0 = (D/(b-1))*y0
 
-        print("charge_sign :", charge_sign)
-        print("y0 :", y0)
-
         y0 *= -charge_sign
 
         y0 += D*np.ones((n))
-        print("y0 :", y0)
-
+    
+    else :
+        y0 = np.random.uniform(0,D, size=(n))
 
     
     for i in range(n):
@@ -544,9 +574,10 @@ for i, X in enumerate(X_green_list):
 # Bobine (optionnel)
 theta = np.linspace(0, 2*np.pi, 300)
 
-x_circ = x_coil + R_coil*np.cos(theta)
-y_circ = D/2 + R_coil*np.sin(theta)
-plt.plot(x_circ, y_circ, 'r', label='Bobine')
+for x_coil in x_coils :
+    x_circ = x_coil + R_coil*np.cos(theta)
+    y_circ = D/2 + R_coil*np.sin(theta)
+    plt.plot(x_circ, y_circ, 'r', label='Bobine')
 
 plt.xlabel("x (m)")
 plt.ylabel("y (m)")
