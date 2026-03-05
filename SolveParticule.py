@@ -68,6 +68,9 @@ def load_freefem_data(nodes_file, ux_file, uy_file):
         # Construction de l’interpolateur 2D pour uy
         uy_interp = CloughTocher2DInterpolator(points, uy_data)
 
+        print("Interpolation is useless :", ux_data == ux_interp)
+        print("Interpolation is useless :", uy_data == uy_interp)
+
         # Message de confirmation
         print("Chargement terminé ")
 
@@ -92,7 +95,32 @@ eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
-x_coil = L / 5         # Position de la bobine
+x_coil = L / 100         # Longitude de la bobine
+z_coil = 0.0           # Hauteur de la bobine
+
+
+####### Creations des objets murs 
+
+
+theta = np.linspace(3*np.pi/2, np.pi/2, 300)
+x_tip = delta*np.cos(theta) + xmur
+x_tip = np.expand_dims(x_tip, axis = 1)
+y_tip_bottom = Rtip*np.sin(theta) + lwall + Rtip
+y_tip_bottom = np.expand_dims(y_tip_bottom, axis = 1)
+y_tip_top = Rtip*np.sin(theta) + D - lwall - eta + Rtip
+y_tip_top = np.expand_dims(y_tip_top, axis = 1)
+
+x_wall = np.expand_dims(np.linspace(L-L/8, L, 100), axis=1)
+
+bot_bot_wall = np.concatenate((x_wall, (D/10)*np.ones_like(x_wall)),axis = 1)
+mid_bot_wall = np.concatenate((x_tip, y_tip_bottom),axis = 1)
+top_bot_wall = np.concatenate((x_wall, (D/10+ lwall)*np.ones_like(x_wall)),axis = 1)
+bot_wall = np.concatenate((bot_bot_wall, mid_bot_wall, top_bot_wall), axis = 0)
+
+bot_top_wall = np.concatenate((x_wall, (D - 2*D/10)*np.ones_like(x_wall)),axis = 1)
+mid_top_wall = np.concatenate((x_tip, y_tip_top),axis = 1)
+top_top_wall = np.concatenate((x_wall, (D- 2*D/10+ lwall)*np.ones_like(x_wall)),axis = 1)
+top_wall = np.concatenate((bot_top_wall, mid_top_wall, top_top_wall), axis = 0)
 
 
 
@@ -220,23 +248,6 @@ def B_N_spires(x, z):
     return Bx_total, Bz_total
 
 
-# =========================
-# PARAMÈTRES DU DOMAINE
-# =========================
-L = 0.027              # Longueur totale du domaine (m)
-D = 0.0036             # Hauteur totale du domaine (m)
-lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
-eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
-Rtip = eta / 2         # Rayon de l'extrémité (tip)
-delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
-xmur = L - Lwall       # Position du mur magnétique
-
-
-# Position de la bobine
-x_coil = L / 5       
-z_coil = 0.0
-
 
 # =========================
 # FONCTION D'AMORTISSEMENT 
@@ -276,6 +287,27 @@ def damping_y(y, Uy, D, charge_sign, gamma_max=1000.0, delta_zone=4e-4):
 
     return -damping * Uy
 
+def repel_from_wall(X, U, wall, d_min=0.02, strength=0.1):
+
+    X = X[:2]
+    U = U[:2]
+    
+    # compute distances to all wall points
+    diff = wall - X
+    dist = np.linalg.norm(diff, axis=1)
+    
+    # find closest point
+    idx = np.argmin(dist)
+    d = dist[idx]
+    
+    if d < d_min:
+        normal = X - wall[idx]
+        normal = normal / np.linalg.norm(normal)
+
+        U = U - 2*strength*np.dot(U, normal)*normal  # reflection
+        
+    return U[:2]
+
 # =========================
 # SIMULATION
 # =========================
@@ -307,8 +339,13 @@ def simulate_particle(X0, U0, charge_sign=1):
         U_int = U[i] + dt*f(U[i])
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
+        # Contourner les murs au fond 
+        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-3)
+        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-3)
+
         # Amortissement vertical
         U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
+
 
         # Mise à jour
         X[i+1] = X[i] + dt*U_new
@@ -321,19 +358,49 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 98   # charge nulle
-n2 = 1   # charge positive (les Na+)
-n3 = 1  # charge négative (les Cl-)
+n1 = 0   # charge nulle
+n2 = 10   # charge positive (les Na+)
+n3 = 10  # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
     X_list = []
     U_list = []
+
+    b = 100
+    y0 = np.logspace(0, 1, num=n, base =b) 
+
+
+    if charge_sign <0 : 
+        y0 += charge_sign*np.ones((n))
+
+        print("y0 :", y0)
+
+        y0 = (D/(b-1))*y0
+
+        print("charge_sign :", charge_sign)
+        print("y0 :", y0)
+
+    else : 
+
+        y0 -= np.ones((n))
+
+        y0 = (D/(b-1))*y0
+
+        print("charge_sign :", charge_sign)
+        print("y0 :", y0)
+
+        y0 *= -charge_sign
+
+        y0 += D*np.ones((n))
+        print("y0 :", y0)
+
+
     
-    for _ in range(n):
+    for i in range(n):
         # Position aléatoire sur le segment (0,0) -> (0,D)
-        y0 = np.random.uniform(0, D)
-        X0 = np.array([0.0, y0, 0.0])
+        #y0 = np.random.uniform(0, D)
+        X0 = np.array([0.0, y0[i], 0.0])
         
         # Vitesse initiale (modifiable si besoin)
         U0 = np.array([1.0, 0.0, 0.0])
