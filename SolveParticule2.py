@@ -237,8 +237,6 @@ xmur = L - Lwall       # Position du mur magnétique
 x_coil = L / 5       
 z_coil = 0.0
 
-x_coils = np.array([L/10, L/5,])
-z_coils = np.array([0.0, 0.0])
 
 
 # =========================
@@ -372,15 +370,8 @@ def simulate_particle(X0, U0, charge_sign=1):
     for i in range(Nt-1):
 
         # champ magnétique
-        #Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
-        #B = np.array([Bx,0.0,Bz]) / B0
-
-        Bx, Bz = 0.0 , 0.0
-        for x, z in x_coils, z_coils :
-            bx, bz = B_N_spires(X[i,0] - x, X[i,2] - z)
-            Bx += bx 
-            Bz += bz
-        B = np.array([Bx, 0.0, Bz]) / B0
+        Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
+        B = np.array([Bx,0.0,Bz]) / B0
 
         def f(u):
             return charge_sign * np.cross(u,B)
