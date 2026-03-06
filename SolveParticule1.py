@@ -377,8 +377,8 @@ def simulate_particle(X0, U0, charge_sign=1):
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
         # Contourner les murs au fond 
-        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 5*1e-4)
-        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 5*1e-4)
+        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-3)
+        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-3)
 
         # Amortissement vertical
         U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)

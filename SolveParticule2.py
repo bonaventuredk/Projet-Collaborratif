@@ -281,6 +281,8 @@ def damping_y(x, y, Uy, D, charge_sign,
         
    
     return -damping * Uy
+
+
 def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-5):
 
     dx = X[0] - xc
