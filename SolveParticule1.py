@@ -408,29 +408,23 @@ def generate_particles(n, charge_sign):
     y0 = np.logspace(0, 1, num=n, base =b) 
 
 
-    if charge_sign < 0 : 
+    if charge_sign <0 : 
         y0 += charge_sign*np.ones((n))
-
-        #print("y0 :", y0)
-
         y0 = (D/(b-1))*y0
 
-        #print("charge_sign :", charge_sign)
-        #print("y0 :", y0)
 
-    else: 
+    elif charge_sign > 0 : 
 
         y0 -= np.ones((n))
 
         y0 = (D/(b-1))*y0
 
-        #print("charge_sign :", charge_sign)
-        #print("y0 :", y0)
-
         y0 *= -charge_sign
 
         y0 += D*np.ones((n))
-        #print("y0 :", y0)
+    
+    else :
+        y0 = np.random.uniform(0,D, size=(n))
 
 
     
