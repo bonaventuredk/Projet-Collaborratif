@@ -322,7 +322,7 @@ def damping_y(y, Uy, D, charge_sign, gamma_max=1000.0, delta_zone=4e-4):
 
     return -damping * Uy
 
-def repel_from_wall(X, U, wall, d_min=0.02, strength=0.1):
+def repel_from_wall(X, U, wall, d_min=0.001, strength=0.1):
 
     X = X[:2]
     U = U[:2]
@@ -377,8 +377,8 @@ def simulate_particle(X0, U0, charge_sign=1):
         U_new = U[i] + dt/2*(f(U[i]) + f(U_int))
 
         # Contourner les murs au fond 
-        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 1e-4)
-        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 1e-4)
+        U_new[:2] = repel_from_wall(X[i], U_new, bot_wall, d_min = 5*1e-4)
+        U_new[:2] = repel_from_wall(X[i], U_new, top_wall, d_min = 5*1e-4)
 
         # Amortissement vertical
         U_new[1] += dt * damping_y(X[i,1], U_new[1], D, charge_sign)
@@ -408,29 +408,25 @@ def generate_particles(n, charge_sign):
     y0 = np.logspace(0, 1, num=n, base =b) 
 
 
-    if charge_sign < 0 : 
+    if charge_sign <0 : 
+        
         y0 += charge_sign*np.ones((n))
-
-        #print("y0 :", y0)
-
+        
         y0 = (D/(b-1))*y0
 
-        #print("charge_sign :", charge_sign)
-        #print("y0 :", y0)
 
-    else: 
+    elif charge_sign > 0 : 
 
         y0 -= np.ones((n))
 
         y0 = (D/(b-1))*y0
 
-        #print("charge_sign :", charge_sign)
-        #print("y0 :", y0)
-
         y0 *= -charge_sign
 
         y0 += D*np.ones((n))
-        #print("y0 :", y0)
+    
+    else :
+        y0 = np.random.uniform(0,D, size=(n))
 
 
     

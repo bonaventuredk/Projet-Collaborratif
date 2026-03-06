@@ -84,7 +84,7 @@ def load_freefem_data(nodes_file, ux_file, uy_file):
 # =========================
 # PARAMÈTRES DU DOMAINE
 # =========================
-L = 0.027              # Longueur totale du domaine (m)
+L = 0.027              # Longueur totale du domaine (m)   <--------------
 D = 0.0036             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
 Lwall = L / 8          # Longueur caractéristique du mur
@@ -92,7 +92,7 @@ eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
-x_coil = L         # Position de la bobine
+
 
 
 
@@ -101,7 +101,7 @@ x_coil = L         # Position de la bobine
 # =========================
 # Constantes physiques et paramètres géométriques
 R_coil = D/3          # Rayon de la spire (en mètres)
-I = 1  # ou mu0*I*N*R_coil² / (2*(R² + z²)^(3/2)) ≈ B0            # Courant traversant la spire (en ampères)
+I = 1 # Courant traversant la spire (en ampères)   <---------------
 N = 100            # Nombre total de spires
 spacing = 0.001    # Espacement entre les spires (en mètres)
 mu0 = 4 * np.pi * 1e-7   # Perméabilité magnétique du vide (H/m)
@@ -221,20 +221,11 @@ def B_N_spires(x, z):
 
 
 # =========================
-# PARAMÈTRES DU DOMAINE
+# POSITION DE LA BOBINE
 # =========================
-L = 0.027              # Longueur totale du domaine (m)
-D = 0.0036             # Hauteur totale du domaine (m)
-lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
-eta = D / 10           # Paramètre géométrique utilisé pour définir Rtip
-Rtip = eta / 2         # Rayon de l'extrémité (tip)
-delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
-xmur = L - Lwall       # Position du mur magnétique
 
-
-# Position de la bobine
-x_coil = L / 5       
+x_coil = L / 5   
+# y_coil =    
 z_coil = 0.0
 
 
@@ -296,7 +287,7 @@ def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max,
 
     val = (dx/a)**2 + (dy/b)**2
 
-    if val < 1:   # la particule est dans l'ellipse → on corrige
+    if val <= 1:   # la particule est dans l'ellipse → on corrige
 
         # angle ellipse
         theta = np.arctan2(dy / b, dx / a)
@@ -341,7 +332,7 @@ def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max,
 # =========================
 Nt = 1000
 dt = 1e-3
-B0 = 200e-7
+B0 = 200e-7   #<--------------------
 
 def simulate_particle(X0, U0, charge_sign=1):
 
@@ -362,16 +353,17 @@ def simulate_particle(X0, U0, charge_sign=1):
     angles = {
         "BR": (-np.pi/2, np.pi),
         "BL": (np.pi, np.pi/2),
-        "TR": (np.pi, np.pi/2),
-        "TL": (-np.pi/2, np.pi)
+        "TR": (-np.pi/2, np.pi),
+        "TL": (np.pi, np.pi/2)
     }
 
     for i in range(Nt-1):
 
         # champ magnétique
         Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
+        
         B = np.array([Bx,0.0,Bz]) / B0
-
+        #print(B)
         def f(u):
             return charge_sign * np.cross(u,B)
 
@@ -419,9 +411,9 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 15   # charge nulle
-n2 = 15   # charge positive (les Na+)
-n3 = 15   # charge négative (les Cl-)
+n1 = 100   # charge nulle
+n2 = 100   # charge positive (les Na+)
+n3 = 100   # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):
@@ -471,9 +463,9 @@ def draw_domain():
     y_tip_top = Rtip*np.sin(theta) + D - lwall - eta + Rtip
     plt.plot(x_tip, y_tip_bottom, 'k')
     plt.plot(x_tip, y_tip_top, 'k')
-    plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'r--', linewidth=1) #pour les bleus
-    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'g--', linewidth=1) # pour le milieu
-    plt.plot([xmur-delta, xmur-delta], [D - lwall-eta/2, D], 'b--', linewidth=1) # pour les rouges
+    plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'k--', linewidth=1) #pour les bleus
+    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'k--', linewidth=1) # pour le milieu
+    plt.plot([xmur-delta, xmur-delta], [D - lwall-eta/2, D], 'k--', linewidth=1) # pour les rouges
 
 # =========================
 # BILAN DES PARTICULES
