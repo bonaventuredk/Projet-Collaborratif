@@ -96,22 +96,47 @@ def B_spire(x, z, z0=0.0):
     Bx, Bz : float
         Composantes horizontale et verticale du champ magnétique.
     """
+
+    # Distance radiale au centre de la spire (projection dans le plan x)
     rho = np.abs(x)
+
+    # Décalage vertical par rapport au plan de la spire
     z_prime = z - z0
+
+    # Cas particulier : point situé exactement sur l’axe de la spire
     if rho < 1e-12:
-        Bx = 0.0
+        Bx = 0.0  # Symétrie axiale → composante horizontale nulle
+
+        # Formule analytique du champ sur l’axe d’une spire
         Bz = (mu0 * I * R_coil**2) / (2 * (R_coil**2 + z_prime**2)**(3/2))
         return Bx, Bz
+
+    # Distances au carré pour les formules elliptiques
     r1_sq = (R_coil - rho)**2 + z_prime**2
     r2_sq = (R_coil + rho)**2 + z_prime**2
+
+    # Paramètre elliptique k²
     k_sq = 1 - r1_sq / r2_sq
+
+    # Facteur commun dans les formules
     C = mu0 * I / (2 * np.pi * np.sqrt(r2_sq))
+
+    # Intégrales elliptiques complètes de première et seconde espèce
     K = ellipk(k_sq)
     E = ellipe(k_sq)
+
+    # Facteur géométrique utilisé dans les expressions
     F = (R_coil**2 + rho**2 + z_prime**2) / r1_sq
+
+    # Composante radiale du champ magnétique
     B_rho = C * (z_prime / rho) * (F * E - K)
+
+    # Composante verticale du champ magnétique
     B_z = C * (((R_coil**2 - rho**2 - z_prime**2) / r1_sq) * E + K)
+
+    # Conversion de B_rho en composante Bx selon le signe de x
     Bx = B_rho * np.sign(x) if x != 0 else 0.0
+
     return Bx, B_z
 
 def B_N_spires(x, z):
