@@ -224,7 +224,7 @@ def B_N_spires(x, z):
 # POSITION DE LA BOBINE
 # =========================
 
-x_coil = L / 5   
+x_coil = 0.0   
 # y_coil =    
 z_coil = 0.0
 
@@ -363,10 +363,10 @@ def simulate_particle(X0, U0, charge_sign=1):
     for i in range(Nt-1):
 
         # champ magnétique
-        Bx, Bz = B_N_spires(X[i,0] - x_coil, X[i,2] - z_coil)
+        Bx, Bz = B_N_spires(X[i,0] -x_coil, X[i,2] - z_coil)
         
-        B = np.array([Bx,0.0,Bz]) / B0
-        #print(B)
+        B = np.array([Bx,0.0,Bz])/ B0
+        print(B)
         def f(u):
             return charge_sign * np.cross(u,B)
 
@@ -414,9 +414,9 @@ def simulate_particle(X0, U0, charge_sign=1):
 # =========================
 
 # Nombre de particules
-n1 = 100   # charge nulle
-n2 = 100   # charge positive (les Na+)
-n3 = 100   # charge négative (les Cl-)
+n1 = 5   # charge nulle
+n2 = 5   # charge positive (les Na+)
+n3 = 5   # charge négative (les Cl-)
 TOTALPARTICULES = n1 + n2 + n3
 
 def generate_particles(n, charge_sign):

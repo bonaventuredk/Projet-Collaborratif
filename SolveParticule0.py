@@ -109,8 +109,7 @@ mu0 = 4 * np.pi * 1e-7   # Perméabilité magnétique du vide (H/m)
 
 def B_spire(x, z, z0=0.0):
     """
-    Calcule le champ magnétique (Bx, Bz) produit par une spire circulaire
-    de rayon R, parcourue par un courant I, au point (x, z).
+    Calcule le champ magnétique (Bx, Bz) produit par une spire circulaire.
 
     Paramètres
     ----------
@@ -119,61 +118,59 @@ def B_spire(x, z, z0=0.0):
     z : float
         Coordonnée verticale du point d'observation.
     z0 : float, optionnel
-        Position verticale de la spire (par défaut 0).
+        Position verticale du centre de la spire (par défaut 0).
 
     Retour
     ------
-    Bx : float
-        Composante horizontale du champ magnétique.
-    Bz : float
-        Composante verticale du champ magnétique.
-
-    Notes
-    -----
-    - Le calcul utilise les formules classiques basées sur les intégrales
-      elliptiques complètes K(k) et E(k).
-    - Un traitement particulier est appliqué lorsque x = 0 pour éviter
-      une division par zéro.
+    Bx, Bz : float
+        Composantes horizontale et verticale du champ magnétique.
+    
+    On utilise la symétrie radiale pour se placer sur le plan (y=0)
     """
 
-    # Distance radiale au centre de la spire (projection dans le plan x)
+    # Distance radiale entre le point d'observation et l'axe de la spire
+    # (ρ dans les coordonnées cylindriques)
     rho = np.abs(x)
 
-    # Décalage vertical par rapport au plan de la spire
+    # Distance verticale entre le point d'observation et le centre de la spire
     z_prime = z - z0
 
-    # Cas particulier : point situé exactement sur l’axe de la spire
+    # Cas particulier : point situé exactement sur l'axe de la spire (ρ = 0)
+    # La formule générale diverge car elle contient un terme 1/ρ.
+    # On utilise donc la formule analytique simplifiée sur l'axe.
     if rho < 1e-12:
-        Bx = 0.0  # Symétrie axiale → composante horizontale nulle
-
-        # Formule analytique du champ sur l’axe d’une spire
+        Bx = 0.0
         Bz = (mu0 * I * R_coil**2) / (2 * (R_coil**2 + z_prime**2)**(3/2))
         return Bx, Bz
 
-    # Distances au carré pour les formules elliptiques
+    # r1² et r2² apparaissent dans la solution analytique de l'intégrale
+    # de Biot-Savart pour une spire circulaire
     r1_sq = (R_coil - rho)**2 + z_prime**2
     r2_sq = (R_coil + rho)**2 + z_prime**2
 
-    # Paramètre elliptique k²
+    # Paramètre m = k² des intégrales elliptiques
     k_sq = 1 - r1_sq / r2_sq
 
-    # Facteur commun dans les formules
+    # Constante multiplicative provenant de la loi de Biot-Savart
+    # μ0 I / (2πR) adaptée à la géométrie
     C = mu0 * I / (2 * np.pi * np.sqrt(r2_sq))
 
     # Intégrales elliptiques complètes de première et seconde espèce
+    # K(k²) et E(k²)
     K = ellipk(k_sq)
     E = ellipe(k_sq)
 
-    # Facteur géométrique utilisé dans les expressions
+    # Terme géométrique apparaissant dans l'expression analytique
     F = (R_coil**2 + rho**2 + z_prime**2) / r1_sq
 
-    # Composante radiale du champ magnétique
+    # Composante radiale du champ magnétique (coordonnées cylindriques)
     B_rho = C * (z_prime / rho) * (F * E - K)
 
-    # Composante verticale du champ magnétique
+    # Composante axiale du champ magnétique
     B_z = C * (((R_coil**2 - rho**2 - z_prime**2) / r1_sq) * E + K)
 
-    # Conversion de B_rho en composante Bx selon le signe de x
+    # Conversion de la composante radiale en composante cartésienne Bx
+    # Le signe dépend de la position du point par rapport à l'axe
     Bx = B_rho * np.sign(x) if x != 0 else 0.0
 
     return Bx, B_z

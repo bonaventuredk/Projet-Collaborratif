@@ -188,6 +188,7 @@ Stokes;
 //plot(ux, value=1, fill=1, wait=1, cmm="Vitesse horizontale ux");
 //plot(uy, value=1, fill=1, wait=1, cmm="Vitesse verticale uy");
 plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
+//plot([ux,uy], fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
 //plot(p, value=1, fill=1, wait=1, cmm="Pression");
 
 // Sauvegarde des champs dans des fichiers texte (1 valeur par ligne)

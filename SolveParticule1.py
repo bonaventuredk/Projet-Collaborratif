@@ -96,10 +96,10 @@ Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur d'une zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique
 x_coil = L / 10         # Longitude de la bobine
-z_coil = 0.0           # Hauteur de la bobine
+z_coil = -0.052           # Hauteur de la bobine
 
-x_coils = np.array([L/10, L/5,])
-z_coils = np.array([0.0, 0.0])
+x_coils = np.array([L/5])
+z_coils = np.array([-0.052])
 
 
 ####### Creations des objets murs 
@@ -132,7 +132,7 @@ top_wall = np.concatenate((bot_top_wall, mid_top_wall, top_top_wall), axis = 0)
 # =========================
 # Constantes physiques et paramètres géométriques
 R_coil = D/3          # Rayon de la spire (en mètres)
-I = 1              # Courant traversant la spire (en ampères)
+I = 1             # Courant traversant la spire (en ampères)
 N = 100            # Nombre total de spires
 spacing = 0.001    # Espacement entre les spires (en mètres)
 mu0 = 4 * np.pi * 1e-7   # Perméabilité magnétique du vide (H/m)
@@ -362,8 +362,8 @@ def simulate_particle(X0, U0, charge_sign=1):
         global x_coils, z_coils
         
         Bx, Bz = 0.0 , 0.0
-        for x, z in x_coils, z_coils :
-            bx, bz = B_N_spires(X[i,0] - x, X[i,2] - z)
+        for x in x_coils :
+            bx, bz = B_N_spires(X[i,0] - x, X[i,2] - z_coil)
             Bx += bx 
             Bz += bz
         B = np.array([Bx, 0.0, Bz]) / B0
