@@ -240,7 +240,7 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         Bx, By, Bz = B_N_spires(
             x - x_coil,
             y - y_coil,
-            z - z_coil,
+            z - z_coil
         )
         
         B = np.array([Bx, By, Bz]) / B0
