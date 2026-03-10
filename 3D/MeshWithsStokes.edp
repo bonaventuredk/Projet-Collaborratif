@@ -1,0 +1,70 @@
+load "msh3"
+
+
+real R = 0.1;          
+real R2 = 0.05;          
+real L = 0.3;          
+real hi = 0.01;        
+int Nz = int(L/hi) + 1;
+
+real theta0 = 10 * pi/180; 
+
+real xA = R*cos(theta0);
+real yA = R*sin(theta0);
+real xB = R*cos(pi - theta0); 
+real yB = R*sin(pi - theta0); 
+
+int Nc = 2 * int(pi * R / hi); 
+int Nsup = max(2, int(Nc * (pi - 2*theta0) / (2*pi))); 
+int Ninf = max(2, int(Nc * (pi + 2*theta0) / (2*pi))); 
+
+border arcSup(t=theta0, pi-theta0) { x = R*cos(t); y = R*sin(t); label=1; }
+
+border arcInf1(t=pi-theta0, 2*pi) { x = R*cos(t); y = R*sin(t); label=1; }
+border arcInf2(t=0, theta0) { x = R*cos(t); y = R*sin(t); label=1; }
+
+real A = 0.06; // courbure vers l'intérieur
+int Ncourbe = max(10, int(2*xA / hi)); // au moins 10 segments pour une courbe lisse
+
+// De A à B (pour la région inférieure)
+border CourbeAB(t=0,1) {
+    x = xA + (xB - xA)*t;          // linéaire en x
+    y = yA + A * sin(pi*t);        // bosse (négative)
+    label = 30;
+}
+// De B à A (pour la région supérieure)
+border CourbeBA(t=1,0) {
+    x = xA + (xB - xA)*t;
+    y = yA + A * sin(pi*t);
+    label = 30;
+}
+
+// --- Maillages 2D des deux régions ---
+
+// Région supérieure (au-dessus de la courbe)
+mesh ThTop = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe));
+
+// Région inférieure (en dessous de la courbe)
+mesh ThBottom = buildmesh(arcInf1(Ninf) + arcInf2(Ninf) + CourbeAB(Ncourbe));
+
+// Vérification 
+plot(ThTop, wait=1, cmm="Region superieure (2D)");
+plot(ThBottom, wait=1, cmm="Region inferieure (2D)");
+
+// --- Extrusion 3D ---
+
+// Labels pour les faces horizontales (doivent être de taille paire)
+int[int] labelUp = [100, 100];   // face supérieure (z = L)
+int[int] labelDown = [200, 200]; // face inférieure (z = 0)
+
+// Extrusion des deux demi-cylindres
+mesh3 ThTopCyl    = buildlayers(ThTop, Nz, zbound=[0, L],
+                                labelup=labelUp, labeldown=labelDown);
+mesh3 ThBottomCyl = buildlayers(ThBottom, Nz, zbound=[0, L],
+                                labelup=labelUp, labeldown=labelDown);
+
+// Fusion : la surface interne (label 30) devient une interface commune
+mesh3 ThCylinder = ThTopCyl + ThBottomCyl;
+
+// Visualisation 3D
+plot(ThCylinder, wait=1, cmm="Cylindre avec surface interne courbee de largeur reduite");
