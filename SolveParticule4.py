@@ -1,5 +1,5 @@
 """
-Simulation multi-tours de particules
+Simulation multi-tours de particules dans le déssalinisateur
 
 Auteurs : bonaventure & audrey & thomas
 """
@@ -9,51 +9,10 @@ import matplotlib.pyplot as plt
 from scipy.special import ellipk, ellipe
 from scipy.interpolate import CloughTocher2DInterpolator
 
-# ============================================================================
-# 1. FONCTIONS DE CHARGEMENT DES DONNÉES FREEFEM
-# ============================================================================
-def load_freefem_data(nodes_file, ux_file, uy_file):
-    """
-    Charge les données issues d'un calcul FreeFem et construit des interpolateurs
-    pour les champs de vitesse.
 
-    Paramètres
-    ----------
-    nodes_file : str
-        Chemin vers le fichier contenant les coordonnées des nœuds (x, y).
-    ux_file : str
-        Chemin vers le fichier contenant la composante horizontale de la vitesse.
-    uy_file : str
-        Chemin vers le fichier contenant la composante verticale de la vitesse.
 
-    Retour
-    ------
-    ux_interp : CloughTocher2DInterpolator or None
-        Interpolateur 2D pour la composante ux (None en cas d'erreur).
-    uy_interp : CloughTocher2DInterpolator or None
-        Interpolateur 2D pour la composante uy (None en cas d'erreur).
-    points : ndarray or None
-        Tableau des coordonnées des nœuds (None en cas d'erreur).
-    """
-    print("Chargement des données FreeFem...")
-    try:
-        points = np.loadtxt(nodes_file)
-        ux_data = np.loadtxt(ux_file)
-        uy_data = np.loadtxt(uy_file)
-        if len(points) != len(ux_data):
-            raise ValueError("Nombre de nœuds différent du nombre de vitesses.")
-        print("Création des interpolateurs...")
-        ux_interp = CloughTocher2DInterpolator(points, ux_data)
-        uy_interp = CloughTocher2DInterpolator(points, uy_data)
-        print("Chargement terminé.")
-        return ux_interp, uy_interp, points
-    except Exception as e:
-        print("Erreur lors du chargement :", e)
-        return None, None, None
+# 1. PARAMÈTRES GÉOMÉTRIQUES DU DOMAINE (constants)
 
-# ============================================================================
-# 2. PARAMÈTRES GÉOMÉTRIQUES DU DOMAINE (constants)
-# ============================================================================
 L = 0.027              # Longueur totale du domaine (m)
 D = 0.0036             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
@@ -63,70 +22,96 @@ Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur de la zone d'influence autour du tip
 xmur = L - Lwall       # Position du mur magnétique (début des pointes)
 
-# ============================================================================
-# 3. PARAMÈTRES DES BOBINES (champ magnétique)
-# ============================================================================
+
+# 2. PARAMÈTRES DES BOBINES (champ magnétique)
+
 R_coil = D / 3         # Rayon de la spire (m)
 I = 1                  # Courant traversant la spire (A)
 N = 100                # Nombre total de spires
 spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
-x_coil = L / 5     # Position suivant x de la bobine
-y_coil = D / 2            # Position suivant y de la bobine
-z_coil = 0             # Position suivant z de la bobine
+x_coil = L / 5         # Position suivant x de la bobine            <----
+y_coil = D / 2         # Position suivant y de la bobine            <----
+z_coil = 0             # Position suivant z de la bobine            <----
 B0 = 200e-7            # Facteur de normalisation du champ (utilisé dans force de Lorentz)
 
-# ============================================================================
+
+
+# 3. FONCTIONS DE CHARGEMENT DES DONNÉES FREEFEM
+
+def load_freefem_data(nodes_file, ux_file, uy_file):
+    """
+    Cette fonction charge les données de FreeFem et fait des interpolateurs pour les vitesses.
+
+    Elle prend trois fichiers : un pour les nœuds (x,y), un pour ux, un pour uy.
+
+    Elle retourne les interpolateurs pour ux et uy, et les points. Si y'a une erreur, ça retourne None.
+    """
+    print("Chargement des données FreeFem...")
+    try:
+        points = np.loadtxt(nodes_file)  # On charge les coordonnées des points
+        ux_data = np.loadtxt(ux_file)  # Composante x de la vitesse
+        uy_data = np.loadtxt(uy_file)  # Composante y de la vitesse
+        if len(points) != len(ux_data):
+            raise ValueError("Nombre de nœuds différent du nombre de vitesses.")  # Vérif qu'on a le bon nombre
+        print("Création des interpolateurs...")
+        ux_interp = CloughTocher2DInterpolator(points, ux_data)  # Interpolateur pour ux
+        uy_interp = CloughTocher2DInterpolator(points, uy_data)  # Interpolateur pour uy
+        print("Chargement terminé.")
+        return ux_interp, uy_interp, points
+    except Exception as e:
+        print("Erreur lors du chargement :", e)  # Si ça plante, on dit pourquoi
+        return None, None, None
+
+
 # 4. FONCTIONS PHYSIQUES (champ magnétique, amortissement, projection)
-# ============================================================================
+
 def B_spire_3D(x, y, z, z0=0.0):
     """
-    Champ magnétique (Bx, By, Bz) produit par une spire circulaire.
-    La spire est centrée en (0,0,z0) et située dans le plan x-y.
+    Calcule le champ magnétique d'une spire circulaire.
+    La spire est au centre (0,0,z0) dans le plan x-y.
     """
+    rho = np.sqrt(x**2 + y**2)  # Distance radiale
+    z_prime = z - z0  # Distance en z par rapport au centre
 
-    rho = np.sqrt(x**2 + y**2)
-    z_prime = z - z0
-
-    if rho < 1e-12:
+    if rho < 1e-12:  # Si on est au centre, éviter division par zéro
         return 0.0, 0.0, (mu0*I*R_coil**2)/(2*(R_coil**2+z_prime**2)**(3/2))
 
     r1_sq = (R_coil-rho)**2 + z_prime**2
     r2_sq = (R_coil+rho)**2 + z_prime**2
 
-    k_sq = 1 - r1_sq/r2_sq
+    k_sq = 1 - r1_sq/r2_sq  # Paramètre pour les intégrales elliptiques
 
-    C = mu0*I/(2*np.pi*np.sqrt(r2_sq))
+    C = mu0*I/(2*np.pi*np.sqrt(r2_sq))  # Constante
 
-    K = ellipk(k_sq)
-    E = ellipe(k_sq)
+    K = ellipk(k_sq)  # Intégrale elliptique complète de première espèce
+    E = ellipe(k_sq)  # Intégrale elliptique complète de deuxième espèce
 
     F = (R_coil**2 + rho**2 + z_prime**2)/r1_sq
 
-    B_rho = C*(z_prime/rho)*(F*E - K)
+    B_rho = C*(z_prime/rho)*(F*E - K)  # Composante radiale
 
-    Bz = C*(((R_coil**2 - rho**2 - z_prime**2)/r1_sq)*E + K)
+    Bz = C*(((R_coil**2 - rho**2 - z_prime**2)/r1_sq)*E + K)  # Composante z
 
-    Bx = B_rho*(x/rho)
-    By = B_rho*(y/rho)
+    Bx = B_rho*(x/rho)  # Composante x
+    By = B_rho*(y/rho)  # Composante y
 
     return Bx, By, Bz
 
 def B_N_spires(x, y, z):
     """
-    Champ total produit par N spires empilées suivant z.
+    Champ total de N spires empilées le long de z.
     """
-
     Bx_total = 0.0
     By_total = 0.0
     Bz_total = 0.0
 
-    z_centers = np.linspace(-spacing*(N-1)/2, spacing*(N-1)/2, N)
+    z_centers = np.linspace(-spacing*(N-1)/2, spacing*(N-1)/2, N)  # Positions des centres des spires
 
-    for z0 in z_centers:
-        bx, by, bz = B_spire_3D(x, y, z, z0)
+    for z0 in z_centers:  # Pour chaque spire
+        bx, by, bz = B_spire_3D(x, y, z, z0)  # Champ de cette spire
 
-        Bx_total += bx
+        Bx_total += bx  # Additionner
         By_total += by
         Bz_total += bz
 
@@ -140,40 +125,24 @@ def damping_y(x, y, Uy, D, charge_sign,
               lwall=0.0,
               eta=0.0):
     """
-    Amortissement appliqué à la composante verticale de la vitesse au voisinage des parois.
+    Amortissement pour la vitesse verticale près des parois.
 
-    Paramètres
-    ----------
-    x, y : float
-        Position de la particule.
-    Uy : float
-        Composante verticale de la vitesse.
-    D : float
-        Hauteur totale du domaine.
-    charge_sign : int
-        Signe de la charge (-1, 0, 1).
-    gamma_max, delta_zone, delta_zone2, delta_zone3, lwall, eta : float
-        Paramètres de l'amortissement.
-
-    Retour
-    ------
-    float
-        Terme d'amortissement à ajouter à la dérivée de Uy (ou 0 si pas d'amortissement).
+    Prend la position, la vitesse Uy, etc., et retourne le terme d'amortissement.
     """
     damping = 0.0
     # Mur du bas
     if y < delta_zone:
-        if charge_sign > 0:
+        if charge_sign > 0:  # Seulement pour les positives
             damping = gamma_max * (delta_zone - y) / delta_zone
         else:
             return 0.0
     # Mur du haut
     elif y > D - delta_zone:
-        if charge_sign < 0:
+        if charge_sign < 0:  # Seulement pour les négatives
             damping = gamma_max * (y - (D - delta_zone)) / delta_zone
         else:
             return 0.0
-    # Parois internes (indépendant du signe)
+    # Parois internes (pour tous)
     walls = [lwall, D - lwall, lwall + eta, D - lwall - eta]
     for ywall in walls:
         if abs(y - ywall) < delta_zone2 and x >= xmur:
@@ -183,40 +152,21 @@ def damping_y(x, y, Uy, D, charge_sign,
 
 def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-5):
     """
-    Projette la particule sur le bord extérieur d'un quart d'ellipse et
-    ne conserve que la composante tangentielle de la vitesse.
+    Projette la particule sur un quart d'ellipse et garde seulement la vitesse tangentielle.
 
-    Paramètres
-    ----------
-    X : array_like de taille 3
-        Position (x, y, z) de la particule.
-    U : array_like de taille 3
-        Vitesse (ux, uy, uz) de la particule.
-    xc, yc : float
-        Coordonnées du centre de l'ellipse.
-    a, b : float
-        Demi‑axes de l'ellipse (respectivement horizontal et vertical).
-    theta_min, theta_max : float
-        Angles (en radians) délimitant le quart d'ellipse considéré.
-    eps : float, optionnel
-        Petit décalage vers l'extérieur pour éviter d'être exactement sur le bord.
-
-    Retour
-    ------
-    X, U : ndarray
-        Position et vitesse corrigées.
+    Prend position et vitesse, centre, axes, angles, et retourne position/vitesse corrigées.
     """
     dx = X[0] - xc
     dy = X[1] - yc
-    val = (dx/a)**2 + (dy/b)**2
+    val = (dx/a)**2 + (dy/b)**2  # Vérifier si à l'intérieur
     if val <= 1:
-        theta = np.arctan2(dy / b, dx / a)
-        # Clamp dans l'intervalle du quart d'ellipse
+        theta = np.arctan2(dy / b, dx / a)  # Angle
+        # Clamp dans l'intervalle
         if theta < theta_min:
             theta = theta_min
         elif theta > theta_max:
             theta = theta_max
-        # Point exact sur l'ellipse
+        # Point sur l'ellipse
         ex = xc + a * np.cos(theta)
         ey = yc + b * np.sin(theta)
         # Normale extérieure
@@ -225,7 +175,7 @@ def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max,
         norm = np.sqrt(nx*nx + ny*ny)
         nx /= norm
         ny /= norm
-        # Légèrement à l'extérieur
+        # Un peu à l'extérieur
         X[0] = ex + eps * nx
         X[1] = ey + eps * ny
         # Vecteur tangent
@@ -240,22 +190,14 @@ def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max,
         U[1] = vt * ty
     return X, U
 
-# ============================================================================
+
 # 5. SIMULATION D'UN TOUR JUSQU'À SORTIE
-# ============================================================================
+
 def get_exit_zone(y):
     """
-    Détermine la zone de sortie en fonction de la coordonnée verticale y.
+    Détermine la zone de sortie selon y.
 
-    Paramètres
-    ----------
-    y : float
-        Coordonnée y du point de sortie.
-
-    Retour
-    ------
-    str
-        'bas (de Na+)', 'milieu' ou 'haut (de Cl-')'.
+    Retourne 'bas (de Na+)', 'milieu' ou 'haut (de Cl-)'.
     """
     if y <= lwall + eta/2:
         return "bas (de Na+)"
@@ -266,32 +208,11 @@ def get_exit_zone(y):
 
 def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None, max_steps=100):
     """
-    Simule la trajectoire d'une particule depuis une position initiale
-    jusqu'à ce qu'elle sorte du domaine (x >= L) ou dépasse les bornes en y.
+    Simule une particule jusqu'à ce qu'elle sorte (x >= L).
 
-    Paramètres
-    ----------
-    X0 : array_like de taille 3
-        Position initiale (x, y, z).
-    U0 : array_like de taille 3
-        Vitesse initiale (ux, uy, uz).
-    charge_sign : int
-        Signe de la charge (-1, 0, 1).
-    dt : float
-        Pas de temps de la simulation.
-    max_steps : int, optionnel
-        Nombre maximal de pas pour éviter les boucles infinies.
+    Prend position initiale, vitesse, signe de charge, pas de temps, interpolateurs optionnels.
 
-    Retour
-    ------
-    X : ndarray de shape (n_steps, 3)
-        Trajectoire complète.
-    U : ndarray de shape (n_steps, 3)
-        Vitesses correspondantes.
-    exit_point : ndarray de taille 3
-        Dernier point de la trajectoire.
-    zone : str
-        Zone de sortie.
+    Retourne trajectoire, vitesses, point de sortie, zone.
     """
     # Définition des quarts d'ellipse (centres et angles)
     centers = {
@@ -324,7 +245,7 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         
         B = np.array([Bx, By, Bz]) / B0
 
-        def f(u):
+        def f(u):  # Fonction pour RK2
             return charge_sign * np.cross(u, B)
 
         # RK2 pour la vitesse
@@ -339,15 +260,15 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
             eta=eta
         )
 
-        # =========================
+        
         # AJOUT DU CHAMP DE VITESSE FREEFEM
-        # =========================
+        
         
         if ux_interp is not None and uy_interp is not None:
             ux_flow = ux_interp(x, y)
             uy_flow = uy_interp(x, y)
         
-            if np.isnan(ux_flow): ux_flow = 0
+            if np.isnan(ux_flow): ux_flow = 0  # Si pas de valeur, mettre 0
             if np.isnan(uy_flow): uy_flow = 0
         else:
             ux_flow = 0
@@ -374,9 +295,9 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         walls = [lwall, D-lwall, lwall+eta, D-lwall-eta]
         if x >= xmur - delta:
             for ywall in walls:
-                if (y - ywall) * (X_new[1] - ywall) < 0:
+                if (y - ywall) * (X_new[1] - ywall) < 0:  # Si traverse le mur
                     X_new[1] = ywall
-                    U_new[1] = 0
+                    U_new[1] = 0  # Vitesse verticale à 0
 
         X.append(X_new)
         U.append(U_new)
@@ -392,32 +313,16 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
     zone = get_exit_zone(exit_point[1])
     return X, U, exit_point, zone
 
-# ============================================================================
-# 6. SIMULATION MULTI-TOURS AVEC BILAN DÉTAILLÉ
-# ============================================================================
+
+# 6. SIMULATION MULTI-TOURS AVEC BILAN 
+
 def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
     """
-    Lance la simulation multi-tours pour un ensemble de particules.
+    Lance la simulation multi-tours pour plusieurs particules.
 
-    Paramètres
-    ----------
-    n_particles_by_charge : dict
-        Dictionnaire avec les clés 'Na+', 'Cl-', 'H20' et le nombre correspondant.
-    total_laps : int
-        Nombre maximum de tours à simuler.
-    dt : float
-        Pas de temps pour la simulation.
-    verbose : bool, optionnel
-        Si True, affiche le bilan détaillé après chaque tour.
+    Prend dict des particules par type, nombre de tours, dt, verbose.
 
-    Retour
-    ------
-    all_trajectories : list of tuples (traj, color)
-        Liste de toutes les trajectoires (pour le tracé) avec leur couleur.
-    particles : list of dict
-        Liste contenant les informations de chaque particule.
-    bilan_detail_par_tour : list of dict
-        Statistiques détaillées pour chaque tour (par zone et par type).
+    Retourne trajectoires, données particules, bilan par tour.
     """
     # Initialisation des particules pour le premier tour
     particles = []
@@ -432,9 +337,9 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
             sign = 0
             color = 'g'
         for _ in range(count):
-            y0 = np.random.uniform(0, D)
+            y0 = np.random.uniform(0, D)  # Position y aléatoire
             X0 = np.array([0.0, y0, 0.0])
-            U0 = np.array([1.0, 0.0, 0.0])
+            U0 = np.array([1.0, 0.0, 0.0])  # Vitesse initiale vers la droite
             particles.append({
                 'charge_sign': sign,
                 'type': charge,      # 'Na+', 'Cl-', 'H20'
@@ -450,7 +355,7 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
 
     for lap in range(1, total_laps + 1):
         print(f"\n--- Tour {lap} ---")
-        actives = [p for p in particles if p['actif']]
+        actives = [p for p in particles if p['actif']]  # Particules encore actives
         n_start = len(actives)
         print(f"Particules démarrant ce tour : {n_start}")
 
@@ -462,7 +367,7 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
 
         for p in actives:
             # Déterminer la position de départ pour ce tour
-            if p['trajectoires']:
+            if p['trajectoires']:  # Si pas le premier tour
                 X0 = p['reinject_pos']
                 U0 = np.array([1.0, 0.0, 0.0])
             else:
@@ -483,12 +388,12 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
             if zone in stats_detail:
                 stats_detail[zone][p['type']] += 1
 
-            if zone == "milieu":
+            if zone == "milieu":  # Réinjecter si milieu
                 reinjectees_par_type[p['type']] += 1
                 p['reinject_pos'] = np.array([0.0, exit_point[1], 0.0])
                 p['actif'] = True
             else:
-                p['actif'] = False
+                p['actif'] = False  # Sortie définitive
 
         bilan_detail_par_tour.append(stats_detail)
 
@@ -536,44 +441,44 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
 
     return all_trajectories, particles, bilan_detail_par_tour
 
-# ============================================================================
+
 # 7. FONCTION DE DESSIN DU DOMAINE
-# ============================================================================
+
 def draw_domain():
     """
-    Dessine le domaine avec les parois, les pointes et les lignes de séparation.
+    Dessine le domaine avec les murs, pointes, etc.
     """
-    plt.plot([0, L], [0, 0], 'k')
-    plt.plot([0, L], [D, D], 'k')
-    plt.plot([0, 0], [0, D], 'k')
-    plt.plot([L, L], [0, lwall], 'k')
-    plt.plot([L, L], [lwall+eta, D-lwall-eta], 'k')
-    plt.plot([L, L], [D-lwall, D], 'k')
-    plt.plot([xmur, L], [lwall, lwall], 'k')
-    plt.plot([xmur, L], [D-lwall, D-lwall], 'k')
-    plt.plot([xmur, L], [lwall+eta, lwall+eta], 'k')
+    plt.plot([0, L], [0, 0], 'k')  # Bas
+    plt.plot([0, L], [D, D], 'k')  # Haut
+    plt.plot([0, 0], [0, D], 'k')  # Gauche
+    plt.plot([L, L], [0, lwall], 'k')  # Droite bas
+    plt.plot([L, L], [lwall+eta, D-lwall-eta], 'k')  # Droite milieu
+    plt.plot([L, L], [D-lwall, D], 'k')  # Droite haut
+    plt.plot([xmur, L], [lwall, lwall], 'k')  # Mur interne bas
+    plt.plot([xmur, L], [D-lwall, D-lwall], 'k')  # Mur interne haut
+    plt.plot([xmur, L], [lwall+eta, lwall+eta], 'k')  # Etc.
     plt.plot([xmur, L], [D-lwall-eta, D-lwall-eta], 'k')
-    theta = np.linspace(3*np.pi/2, np.pi/2, 300)
+    theta = np.linspace(3*np.pi/2, np.pi/2, 300)  # Pour les pointes
     x_tip = delta * np.cos(theta) + xmur
     y_tip_bottom = Rtip * np.sin(theta) + lwall + Rtip
     y_tip_top = Rtip * np.sin(theta) + D - lwall - eta + Rtip
     plt.plot(x_tip, y_tip_bottom, 'k')
     plt.plot(x_tip, y_tip_top, 'k')
-    plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'k--', linewidth=1)
+    plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'k--', linewidth=1)  # Lignes de séparation
     plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'k--', linewidth=1)
     plt.plot([xmur-delta, xmur-delta], [D - lwall - eta/2, D], 'k--', linewidth=1)
 
-# ============================================================================
+
 # 8. PROGRAMME PRINCIPAL
-# ============================================================================
+
 if __name__ == "__main__":
-    # -------------------------------------------------
+    
     # Paramètres de simulation (à modifier au besoin)
-    # -------------------------------------------------
+    
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 50                        # Nombre de particules neutres (H20)
-    n2 = 50                        # Nombre de particules positives (Na+)
-    n3 = 50                        # Nombre de particules négatives (Cl-)
+    n1 = 10                        # Nombre de particules neutres (H20)
+    n2 = 10                        # Nombre de particules positives (Na+)
+    n3 = 10                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
 
     n_particles = {'Na+': n2, 'Cl-': n3, 'H20': n1}
@@ -583,31 +488,19 @@ if __name__ == "__main__":
     print(f"==============================")
     print(f"Nombre total de particules : {TOTAL_PARTICULES}")
     print(f"Nombre de tours maximum : {total_laps}")
-    # -------------------------------------------------
+    
     # Chargement des données FreeFem (si disponibles: les fichiers doivent être dans le même dossier)
-    # -------------------------------------------------
+   
     ux_interp, uy_interp, points = load_freefem_data('nodes.txt', 'ux.txt', 'uy.txt')
 
     
-    # -------------------------------------------------
+    
     # Lancement de la simulation
-    # -------------------------------------------------
+   
     trajectories, particles_data, bilan_detail = run_multi_lap(n_particles, total_laps, dt, verbose=True)
 
-   
-    # -------------------------------------------------
-    # Tracé global de toutes les trajectoires (tous tours confondus)
-    # -------------------------------------------------
-    #plt.figure(figsize=(10, 5))
-    #draw_domain()
-
-    #if points is not None:
-    #    plt.scatter(points[:, 0], points[:, 1], color='skyblue', s=10, label='Nœuds du maillage')
-
-
-    # -------------------------------------------------
     # Tracé par tour (un graphique distinct pour chaque tour)
-    # -------------------------------------------------
+
     max_lap = max(p['laps_completed'] for p in particles_data) if particles_data else 0
     
     for lap in range(1, max_lap + 1):
@@ -633,7 +526,7 @@ if __name__ == "__main__":
                          alpha=0.7,
                          label=label)
 
-        # Tracé de la bobine (optionnel)
+        # Tracé de la bobine
         theta = np.linspace(0, 2*np.pi, 300)
         x_circ = x_coil + R_coil * np.cos(theta)
         y_circ = y_coil + R_coil * np.sin(theta)
