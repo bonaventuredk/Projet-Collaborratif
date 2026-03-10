@@ -71,95 +71,66 @@ I = 1                  # Courant traversant la spire (A)
 N = 100                # Nombre total de spires
 spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
-x_coil = L / 5         # Position horizontale de la bobine
-z_coil = 0           # Position verticale de la bobine (dans le plan)
+x_coil = L / 5     # Position suivant x de la bobine
+y_coil = D / 2            # Position suivant y de la bobine
+z_coil = 0             # Position suivant z de la bobine
 B0 = 200e-7            # Facteur de normalisation du champ (utilisé dans force de Lorentz)
 
 # ============================================================================
 # 4. FONCTIONS PHYSIQUES (champ magnétique, amortissement, projection)
 # ============================================================================
-def B_spire(x, z, z0=0.0):
+def B_spire_3D(x, y, z, z0=0.0):
     """
-    Calcule le champ magnétique (Bx, Bz) produit par une spire circulaire.
-
-    Paramètres
-    ----------
-    x : float
-        Coordonnée horizontale du point d'observation.
-    z : float
-        Coordonnée verticale du point d'observation.
-    z0 : float, optionnel
-        Position verticale du centre de la spire (par défaut 0).
-
-    Retour
-    ------
-    Bx, Bz : float
-        Composantes horizontale et verticale du champ magnétique.
+    Champ magnétique (Bx, By, Bz) produit par une spire circulaire.
+    La spire est centrée en (0,0,z0) et située dans le plan x-y.
     """
 
-    # Distance radiale au centre de la spire (projection dans le plan x)
-    rho = np.abs(x)
-
-    # Décalage vertical par rapport au plan de la spire
+    rho = np.sqrt(x**2 + y**2)
     z_prime = z - z0
 
-    # Cas particulier : point situé exactement sur l’axe de la spire
     if rho < 1e-12:
-        Bx = 0.0  # Symétrie axiale → composante horizontale nulle
+        return 0.0, 0.0, (mu0*I*R_coil**2)/(2*(R_coil**2+z_prime**2)**(3/2))
 
-        # Formule analytique du champ sur l’axe d’une spire
-        Bz = (mu0 * I * R_coil**2) / (2 * (R_coil**2 + z_prime**2)**(3/2))
-        return Bx, Bz
+    r1_sq = (R_coil-rho)**2 + z_prime**2
+    r2_sq = (R_coil+rho)**2 + z_prime**2
 
-    # Distances au carré pour les formules elliptiques
-    r1_sq = (R_coil - rho)**2 + z_prime**2
-    r2_sq = (R_coil + rho)**2 + z_prime**2
+    k_sq = 1 - r1_sq/r2_sq
 
-    # Paramètre elliptique k²
-    k_sq = 1 - r1_sq / r2_sq
+    C = mu0*I/(2*np.pi*np.sqrt(r2_sq))
 
-    # Facteur commun dans les formules
-    C = mu0 * I / (2 * np.pi * np.sqrt(r2_sq))
-
-    # Intégrales elliptiques complètes de première et seconde espèce
     K = ellipk(k_sq)
     E = ellipe(k_sq)
 
-    # Facteur géométrique utilisé dans les expressions
-    F = (R_coil**2 + rho**2 + z_prime**2) / r1_sq
+    F = (R_coil**2 + rho**2 + z_prime**2)/r1_sq
 
-    # Composante radiale du champ magnétique
-    B_rho = C * (z_prime / rho) * (F * E - K)
+    B_rho = C*(z_prime/rho)*(F*E - K)
 
-    # Composante verticale du champ magnétique
-    B_z = C * (((R_coil**2 - rho**2 - z_prime**2) / r1_sq) * E + K)
+    Bz = C*(((R_coil**2 - rho**2 - z_prime**2)/r1_sq)*E + K)
 
-    # Conversion de B_rho en composante Bx selon le signe de x
-    Bx = B_rho * np.sign(x) if x != 0 else 0.0
+    Bx = B_rho*(x/rho)
+    By = B_rho*(y/rho)
 
-    return Bx, B_z
+    return Bx, By, Bz
 
-def B_N_spires(x, z):
+def B_N_spires(x, y, z):
     """
-    Calcule le champ magnétique total produit par N spires identiques alignées verticalement.
-
-    Paramètres
-    ----------
-    x, z : float
-        Coordonnées du point d'observation.
-
-    Retour
-    ------
-    Bx_total, Bz_total : float
-        Composantes horizontale et verticale du champ total.
+    Champ total produit par N spires empilées suivant z.
     """
-    Bx_total, Bz_total = 0.0, 0.0
+
+    Bx_total = 0.0
+    By_total = 0.0
+    Bz_total = 0.0
+
     z_centers = np.linspace(-spacing*(N-1)/2, spacing*(N-1)/2, N)
-    for z_center in z_centers:
-        bx, bz = B_spire(x, z, z_center)
+
+    for z0 in z_centers:
+        bx, by, bz = B_spire_3D(x, y, z, z0)
+
         Bx_total += bx
+        By_total += by
         Bz_total += bz
-    return Bx_total, Bz_total
+
+    return Bx_total, By_total, Bz_total
 
 def damping_y(x, y, Uy, D, charge_sign,
               gamma_max=1000.0,
@@ -345,8 +316,13 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         ux, uy, uz = U[-1]
 
         # Champ magnétique
-        Bx, Bz = B_N_spires(x - x_coil, z - z_coil)
-        B = np.array([Bx, 0.0, Bz]) / B0
+        Bx, By, Bz = B_N_spires(
+            x - x_coil,
+            y - y_coil,
+            z - z_coil
+        )
+        
+        B = np.array([Bx, By, Bz]) / B0
 
         def f(u):
             return charge_sign * np.cross(u, B)
@@ -633,27 +609,40 @@ if __name__ == "__main__":
     # Tracé par tour (un graphique distinct pour chaque tour)
     # -------------------------------------------------
     max_lap = max(p['laps_completed'] for p in particles_data) if particles_data else 0
+    
     for lap in range(1, max_lap + 1):
         plt.figure(figsize=(10, 5))
         draw_domain()
         if points is not None:
-            plt.scatter(points[:, 0], points[:, 1], color='skyblue', s=10)
+            plt.scatter(points[:, 0], points[:, 1], color='skyblue', s=10, label='Nœuds du maillage')
 
         # Tracé des trajectoires de ce tour
+        labels_done = {'Na+': False, 'Cl-': False, 'H20': False}
         for p in particles_data:
             if lap <= len(p['trajectoires']):
                 traj = p['trajectoires'][lap-1]
-                plt.plot(traj[:, 0], traj[:, 1], color=p['couleur'], linewidth=0.7, alpha=0.7)
+        
+                label = None
+                if not labels_done[p['type']]:
+                    label = p['type']
+                    labels_done[p['type']] = True
+        
+                plt.plot(traj[:,0], traj[:,1],
+                         color=p['couleur'],
+                         linewidth=0.7,
+                         alpha=0.7,
+                         label=label)
 
         # Tracé de la bobine (optionnel)
         theta = np.linspace(0, 2*np.pi, 300)
         x_circ = x_coil + R_coil * np.cos(theta)
-        y_circ = D/2 + R_coil * np.sin(theta)
-        plt.plot(x_circ, y_circ, 'r', alpha=0.5)
+        y_circ = y_coil + R_coil * np.sin(theta)
+        plt.plot(x_circ, y_circ, 'k', alpha=0.5, label="Bobine magnétique")
 
         plt.xlabel("x (m)")
         plt.ylabel("y (m)")
         plt.title(f"Trajectoires du tour {lap}")
         plt.axis('equal')
         plt.grid(True, linestyle='--', alpha=0.7)
+        plt.legend()
         plt.show()
