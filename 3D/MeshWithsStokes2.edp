@@ -1,11 +1,21 @@
 load "msh3"
 
+real D = 0.0036;  // soit 3.6 mm      // Diamètre :Largeur du domaine en (2D)
+//real L = 0.027;           // Longueur totale du domaine
+
+// Paramètres des murs
+//real lwall = D/10;      // Hauteur des murs
+//real Lwall = L/8;       // Position horizontale du mur (distance depuis la gauche)
+//real eta = D/10;        // Largeur du mur
+//real R = eta/2;          // Rayon du demi cercle à la pointe (petit rayon du futur ellipse)
+//real delta = 6*R;
 
 // Paramètres géométriques du cylindre
-real R = 0.1;          // Rayon du cylindre
+real R = 0.0036;          // Rayon du cylindre
 real R2 = 0.05;        // Rayon interne (non utilisé dans ce script)
-real L = 0.3;          // Longueur du cylindre (direction z)
-real hi = 0.01;        // Taille des éléments du maillage
+real L = 0.027;          // Longueur du cylindre (direction z)
+real hi = 0.0001;
+real hi2 = 0.0000001;        // Taille des éléments du maillage
 int Nz = int(L/hi) + 1; // Nombre de couches en z
 
 // Angle d'ouverture pour la surface interne courbée
@@ -23,7 +33,7 @@ real xD = R*cos( - theta0);
 real yD = R*sin(- theta0); 
 
 // Paramètres de discrétisation pour les arcs
-int Nc = 2 * int(pi * R / hi); // Nombre total de segments pour un cercle complet
+int Nc = 2 * int(pi * R / hi2); // Nombre total de segments pour un cercle complet
 int Nsup = max(2, int(Nc * (pi - 2*theta0) / (2*pi))); // Segments pour l'arc supérieur
 int Ninf = max(2, int(Nc * (pi + 2*theta0) / (2*pi))); // Segments pour les arcs inférieurs 
 
@@ -86,9 +96,9 @@ real peri = 2*pi*r;
 
 mesh ThDisque;
 border disque (t= 0,2*pi){x = r * cos (t); y = r* sin (t); label = 1;}; 
-int N = peri / (hi) + 1 ;	
+int N = peri / (hi2) + 1 ;	
 ThDisque = buildmesh (disque(N));
- 
+
 
 real z0 = 0, z1 = 4*L/5;
 
@@ -117,3 +127,33 @@ mesh3 ThCylinder = ThTopCyl + ThBottomCyl + ThBasCyl + ThCylindre;
 
 // Visualisation du maillage 3D final
 plot(ThCylinder, wait=1, cmm="Cylindre avec surface interne courbee de largeur reduite");
+
+// --- Espace EF 3D ---
+fespace Vh(ThCylinder, [P2,P2,P2,P1]);
+
+real nu = 1;
+real debit = -2.78e-6;
+real deltaP = -24*nu*L*debit/(R^3);
+real Pe = deltaP/2;
+real Ps = -deltaP/2;
+
+func uin = deltaP*z*(R-z)/(4*L);
+
+// Macro
+macro grad(w) [dx(w), dy(w), dz(w)] //
+macro Grad(wx, wy, wz) [grad(wx), grad(wy), grad(wz)] //
+macro div(wx, wy, wz) (dx(wx) + dy(wy) + dz(wz)) //
+
+// Vecteurs solutions & test 
+Vh [ux, uy, uz, p], [vx, vy, vz, q];
+
+problem Stokes3D([ux,uy,uz,p], [vx,vy,vz,q]) = int3d(ThCylinder)(nu*((Grad(ux,uy,uz):Grad(vx,vy,vz))) 
+                                           - div(vx,vy,vz)*p - div(ux,uy,uz)*q)
+                                           + on(10, 20, ux = 0, uy = uin, uz = 0)
+					   + on(1, ux = 0, uy = 0, uz = 0);
+
+Stokes3D;
+plot(ux, wait = 1);
+plot(uy, wait = 1);
+plot(uz, wait = 1);
+					
