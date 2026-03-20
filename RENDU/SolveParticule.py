@@ -27,13 +27,13 @@ xmur = L - Lwall       # Position du mur magnétique (début des pointes)
 
 R_coil = D / 3         # Rayon de la spire (m)
 I = 1                  # Courant traversant la spire (A)
-N = 100                # Nombre total de spires
+N = 30                # Nombre total de spires
 spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
 x_coil = L / 5         # Position suivant x de la bobine            <----
 y_coil = D / 2         # Position suivant y de la bobine            <----
 z_coil = 0             # Position suivant z de la bobine            <----
-B0 = 200e-7            # Facteur de normalisation du champ (utilisé dans force de Lorentz)
+B0 = 200e-7               # Facteur de normalisation du champ (utilisé dans force de Lorentz)
 
 
 
@@ -152,50 +152,50 @@ def damping_y(x, y, Uy, D, charge_sign,
 
 def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
     """
-    Projette la particule sur un quart d'ellipse et garde seulement la vitesse tangentielle.
+    Projette la particule sur un quart d'ellipse et impose la condition d'adhérence (vitesse nulle).
 
-    Prend position et vitesse, centre, axes, angles, et retourne position/vitesse corrigées.
+    Paramètres:
+        X : array [x, y]  position de la particule (modifiée)
+        U : array [ux, uy] vitesse de la particule (modifiée)
+        xc, yc : centre de l'ellipse
+        a, b : demi-axes de l'ellipse
+        theta_min, theta_max : angles de début et fin du quart d'ellipse (en radians)
+        eps : petite distance pour placer la particule juste à l'extérieur de l'ellipse
+
+    Retourne:
+        X, U après projection et adhérence
     """
     dx = X[0] - xc
     dy = X[1] - yc
-    val = (dx/a)**2 + (dy/b)**2  # Vérifier si c'est à l'intérieur
-    if val <= 1:
-        theta = np.arctan2(dy / b, dx / a)  # Angle
-        # Clamp dans l'intervalle
+    val = (dx / a)**2 + (dy / b)**2
+
+    if val <= 1:  # Particule à l'intérieur ou sur la pointe
+        theta = np.arctan2(dy / b, dx / a)  # angle paramétrique
+
+        # Clamp dans l'intervalle autorisé
         if theta < theta_min:
             theta = theta_min
         elif theta > theta_max:
             theta = theta_max
+
         # Point sur l'ellipse
         ex = xc + a * np.cos(theta)
         ey = yc + b * np.sin(theta)
+
         # Normale extérieure
         nx = np.cos(theta) / a
         ny = np.sin(theta) / b
-        norm = np.sqrt(nx*nx + ny*ny)
+        norm = np.sqrt(nx * nx + ny * ny)
         nx /= norm
         ny /= norm
-        # Un peu à l'extérieur
+
+        # Placer la particule juste à l'extérieur de la pointe
         X[0] = ex + eps * nx
         X[1] = ey + eps * ny
-        # Vecteur tangent (sécurité anti-verticale)
-        tx = -a * np.sin(theta)
-        ty =  b * np.cos(theta)
-        
-        # ⚠️ éviter tx = 0
-        epsilon_t = 1e-5
-        if abs(tx) < epsilon_t:
-            tx = np.sign(tx) * epsilon_t
-        
-        # Normalisation
-        t_norm = np.sqrt(tx*tx + ty*ty)
-        tx /= t_norm
-        ty /= t_norm
 
-        # Projection de la vitesse sur la tangente
-        vt = U[0]*tx + U[1]*ty
-        U[0] = vt * tx
-        U[1] = vt * ty
+        # Condition de non-glissement : la particule colle, vitesse nulle
+        U[:] = 0.0
+
     return X, U
 
 
@@ -207,11 +207,11 @@ def get_exit_zone(y):
 
     Retourne 'bas (de Na+)', 'milieu' ou 'haut (de Cl-)'.
     """
-    if y <= lwall + eta/2:
+    if y <= lwall:
         return "bas (de Na+)"
-    elif y >= D - lwall - eta/2:
+    elif y >= D - lwall:
         return "haut (de Cl-)"
-    else:
+    elif y <= D - lwall - eta and y >= lwall + eta :
         return "milieu"
 
 def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None, max_steps=100):
@@ -320,6 +320,12 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
     U = np.array(U)
     exit_point = X[-1]
     zone = get_exit_zone(exit_point[1])
+    X = np.array(X)
+    U = np.array(U)
+    exit_point = X[-1]
+    zone = get_exit_zone(exit_point[1])
+    duration = i * dt  # <-- ici on calcule la durée du tour
+    return X, U, exit_point, zone, duration
     return X, U, exit_point, zone
 
 
@@ -361,7 +367,7 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
 
     all_trajectories = []
     bilan_detail_par_tour = []  # pour stocker les stats détaillées par tour
-
+    
     for lap in range(1, total_laps + 1):
         print(f"\n--- Tour {lap} ---")
         actives = [p for p in particles if p['actif']]  # Particules encore actives
@@ -384,11 +390,13 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
                 U0 = np.array([1.0, 0.0, 0.0])
 
             # Simulation jusqu'à sortie
-            traj, _, exit_point, zone = simulate_until_exit(
+            traj, _, exit_point, zone, duration = simulate_until_exit(
                 X0, U0, p['charge_sign'], dt,
                 ux_interp, uy_interp
             )
             p['trajectoires'].append(traj)
+            p.setdefault('durations', []).append(duration)  # <-- ici on stocke la durée
+            #p['trajectoires'].append(traj)
             all_trajectories.append((traj, p['couleur']))
 
             p['laps_completed'] += 1
@@ -403,7 +411,14 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
                 p['actif'] = True
             else:
                 p['actif'] = False  # Sortie définitive
-
+        if verbose:
+            total_duration = np.mean([p['durations'][-1] for p in actives])
+            print(f"Durée moyenne du tour {lap} : {total_duration:.4f} s")
+                
+        # Calcul des particules perdues
+        total_sorties = sum(sum(d.values()) for d in stats_detail.values())
+        nb_perdues = n_start - total_sorties  # Particules ayant touché un obstacle
+        print(f"Nombre de particules perdues  : {nb_perdues}")
         bilan_detail_par_tour.append(stats_detail)
 
         # Affichage du bilan détaillé pour ce tour
@@ -452,31 +467,77 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, verbose=True):
 
 
 # 7. FONCTION DE DESSIN DU DOMAINE
-
 def draw_domain():
     """
-    Dessine le domaine avec les murs, pointes, etc.
+    Dessine le domaine avec les murs
     """
-    plt.plot([0, L], [0, 0], 'k')  # Bas
-    plt.plot([0, L], [D, D], 'k')  # Haut
-    plt.plot([0, 0], [0, D], 'k')  # Gauche
-    plt.plot([L, L], [0, lwall], 'k')  # Droite bas
-    plt.plot([L, L], [lwall+eta, D-lwall-eta], 'k')  # Droite milieu
-    plt.plot([L, L], [D-lwall, D], 'k')  # Droite haut
-    plt.plot([xmur, L], [lwall, lwall], 'k')  # Mur interne bas
-    plt.plot([xmur, L], [D-lwall, D-lwall], 'k')  # Mur interne haut
-    plt.plot([xmur, L], [lwall+eta, lwall+eta], 'k')  # Etc.
-    plt.plot([xmur, L], [D-lwall-eta, D-lwall-eta], 'k')
-    theta = np.linspace(3*np.pi/2, np.pi/2, 300)  # Pour les pointes
-    x_tip = delta * np.cos(theta) + xmur
-    y_tip_bottom = Rtip * np.sin(theta) + lwall + Rtip
-    y_tip_top = Rtip * np.sin(theta) + D - lwall - eta + Rtip
-    plt.plot(x_tip, y_tip_bottom, 'k')
-    plt.plot(x_tip, y_tip_top, 'k')
-    plt.plot([xmur-delta, xmur-delta], [0, lwall + eta/2], 'k--', linewidth=1)  # Lignes de séparation
-    plt.plot([xmur-delta, xmur-delta], [lwall + eta/2, D - lwall - eta/2], 'k--', linewidth=1)
-    plt.plot([xmur-delta, xmur-delta], [D - lwall - eta/2, D], 'k--', linewidth=1)
+    # ===================================================
+    # Paramètres géométriques (à ajuster si nécessaire)
+    # ===================================================
+    D = 0.0036            # Largeur du domaine (3.6 mm)
+    L = 0.027             # Longueur totale
+    lwall = D / 10        # Hauteur des murs
+    Lwall = L / 8         # Position horizontale du mur (depuis la gauche)
+    eta = D / 10          # Épaisseur du mur
+    R = eta / 2           # Rayon de base de la pointe
+    delta = 6 * R         # Profondeur de la pointe
+    xmur = L - Lwall      # Position horizontale du début du mur (côté droit)
+    n = 1.5               # Paramètre de forme de la pointe
+    alpha = 2.0 / n       # Exposant pour la transformation
 
+    # ===================================================
+    # Dessin des murs extérieurs et des lignes horizontales
+    # ===================================================
+    plt.plot([0, L], [0, 0], 'k')                     # Bas
+    plt.plot([0, L], [D, D], 'k')                     # Haut
+    plt.plot([0, 0], [0, D], 'k')                     # Gauche
+    plt.plot([L, L], [0, lwall], 'k')                 # Droite bas
+    plt.plot([L, L], [lwall + eta, D - lwall - eta], 'k')  # Droite milieu
+    plt.plot([L, L], [D - lwall, D], 'k')             # Droite haut
+
+    # Murs internes horizontaux
+    plt.plot([xmur, L], [lwall, lwall], 'k')          # Mur interne bas
+    plt.plot([xmur, L], [D - lwall, D - lwall], 'k')  # Mur interne haut
+    plt.plot([xmur, L], [lwall + eta, lwall + eta], 'k')      # Arête du bas
+    plt.plot([xmur, L], [D - lwall - eta, D - lwall - eta], 'k')  # Arête du haut
+
+    # ===================================================
+    # Fonction pour générer une pointe
+    # ===================================================
+    def tip_curve(x_center, delta, R, y_center, alpha, theta):
+        """
+        Calcule les coordonnées (x, y) des points d'une pointe.
+        Utilise la transformation : xp = sign(cosθ) * |cosθ|^α, yp = sign(sinθ) * |sinθ|^α.
+        """
+        ct = np.cos(theta)
+        st = np.sin(theta)
+        xp = np.sign(ct) * np.abs(ct) ** alpha
+        yp = np.sign(st) * np.abs(st) ** alpha
+        x = x_center + delta * xp
+        y = y_center + R * yp
+        return x, y
+
+    # Angles paramétriques : de 270° à 90° (3π/2 à π/2)
+    theta = np.linspace(3 * np.pi / 2, np.pi / 2, 300)
+
+    # ===================================================
+    # Pointe inférieure
+    # ===================================================
+    x_tip_bottom, y_tip_bottom = tip_curve(xmur, delta, R, lwall + R, alpha, theta)
+    plt.plot(x_tip_bottom, y_tip_bottom, 'k')
+
+    # ===================================================
+    # Pointe supérieure
+    # ===================================================
+    x_tip_top, y_tip_top = tip_curve(xmur, delta, R, D - lwall - eta + R, alpha, theta)
+    plt.plot(x_tip_top, y_tip_top, 'k')
+
+    # ===================================================
+    # Lignes de séparation en pointillés
+    # ===================================================
+    plt.plot([L, L], [0, lwall + eta / 2], 'r--', linewidth=1)
+    plt.plot([L, L], [lwall + eta / 2, D - lwall - eta / 2], 'r--', linewidth=1)
+    plt.plot([L,L], [D - lwall - eta / 2, D], 'r--', linewidth=1)
 
 # 8. PROGRAMME PRINCIPAL
 
@@ -485,9 +546,9 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 100                        # Nombre de particules neutres (H20)
-    n2 = 100                        # Nombre de particules positives (Na+)
-    n3 = 100                        # Nombre de particules négatives (Cl-)
+    n1 = 10                       # Nombre de particules neutres (H20)
+    n2 = 10                        # Nombre de particules positives (Na+)
+    n3 = 10                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
 
     n_particles = {'Na+': n2, 'Cl-': n3, 'H20': n1}

@@ -30,7 +30,8 @@ real yB = R*sin(pi - theta0);
 real xC = R*cos(pi + theta0);
 real yC = R*sin(pi + theta0);
 real xD = R*cos( - theta0); 
-real yD = R*sin(- theta0); 
+real yD = R*sin(- theta0);
+
 
 // Paramètres de discrétisation pour les arcs
 int Nc = 2 * int(pi * R / hi2); // Nombre total de segments pour un cercle complet

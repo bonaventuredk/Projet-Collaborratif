@@ -1,0 +1,146 @@
+/////////////////////////////////////////////////////////
+//Résolution Navier-Stokes pour le domaine 2D
+/////////////////////////////////////////////////////////
+
+// Groupe 2: 
+// --------
+    // 1. DOHEMETO Bonaventure
+    // 2. DRIEUX Audrey
+    // 3. FISK Thomas
+
+include "Maillage2D.edp"
+
+// ==============================================================
+// Paramètres de l'adaptation (calcul du gradient et raffinement)
+// ==============================================================
+int nbiter = 4;               // nombre d'itérations d'adaptation
+real err0 = 0.01*60;            // tolérance relative (plus petit = plus raffiné)
+real hmin = D/1000;           // taille minimale des arêtes
+real hmax = D/10;             // taille maximale des arêtes
+
+// Paramètres physiques
+
+real debit = -2.778e-6; // 10 L/h
+real deltaP = -24*L*debit/(D^3);
+real Pe = deltaP/2;
+real Ps = -deltaP/2;
+real nu = 1.005e-6;
+
+// Profil de vitesse parabolique (Poiseuille) à l'entrée et à la sortie
+// On suppose que la hauteur du canal est D, et la longueur L
+func uinx = deltaP * y * (D - y) / (4 * L); // vitesse horizontale
+real kappa = 1e6; // constante pour ramener le résultat à la meme echelle
+
+// Définition des espaces d'éléments finis sur le maillage courant
+fespace Vh2(Tube2D, P2);      // Espace P2 pour la vitesse (polynômes de degré 2, plus précis)
+fespace Vh(Tube2D, P1);       // Espace P1 pour la pression (polynômes de degré 1, moins cher en calcul)
+
+// Variables pour la solution du problème de Stokes
+Vh2 ux, uy;                   // Composantes horizontale et verticale de la vitesse (solutions)
+Vh p;                         // Champ de pression (solution)
+
+// Variables pour les fonctions test (utilisées dans la formulation faible)
+Vh2 vx, vy;                   // Fonctions test pour la vitesse (mêmes espaces que ux, uy)
+Vh q;                         // Fonction test pour la pression (même espace que p)
+
+// Variable auxiliaire pour estimer l'erreur et piloter l'adaptation
+Vh indicator;                 // Indicateur d'erreur pour l'adaptation (norme du gradient de vitesse)
+
+
+// ==========================================
+// Boucle d'adaptation du maillage
+// ==========================================
+for (int iter = 0; iter < nbiter; iter++) {                    // Itération de adaptation (affinage du maillage)
+    cout << "\n - Iteration d'adaptation " << iter+1 << " / " << nbiter << " - " << endl; // Affichage itération courante
+
+    // ==========================================
+    // Définition du problème de Stokes (équations Navier-Stokes stationnaires, viscosité dominante)
+    // ==========================================
+    problem Stokes ([ux, uy, p], [vx, vy, q]) =
+        int2d(Tube2D)(                  // Intégrale sur le domaine 2D
+            // Terme viscosité (déformation): ν * (∇u : ∇v)
+            nu * (dx(ux)*dx(vx) + dy(ux)*dy(vx) + dx(uy)*dx(vy) + dy(uy)*dy(vy)) * kappa
+            // Terme pression-divergence: -p * div(v)
+            - p * (dx(vx) + dy(vy))
+            // Terme incompressibilité: -q * div(u)
+            - q * (dx(ux) + dy(uy)) 
+        )
+        - int1d(Tube2D, 22)( Pe * vx )
+        + int1d(Tube2D, 11)( Ps * vx )
+        // Conditions aux limites sur l'entrée (bord 22: gauche)
+        + on(22, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
+        + on(22, p = Pe)                // Pression: imposée à l'entrée
+        // Conditions aux limites sur la sortie (bord 11: droite, entre les murs)
+        + on(11, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
+        + on(11, p = Ps)                // Pression: imposée à la sortie
+        // Conditions aux limites sur tous les murs (no-slip: vitesse = 0)
+        + on(1,2,4,5,6,7,8,9,10,12,13,14,15,16,17,18,20,21, ux=0, uy=0); // Murs: vitesse zéro
+
+    // Résolution du système linéaire de Stokes
+    Stokes;                             // Appel du solveur FreeFEM
+
+    // Calcul de l'indicateur d'erreur : norme du gradient de vitesse (pour adapter le maillage)
+    indicator = sqrt( dx(ux)^2 + dy(ux)^2 + dx(uy)^2 + dy(uy)^2 ); // ||∇u|| qui mesure le taux de déformation
+
+    // Visualisation de l'indicateur d'erreur pour suivi de convergence
+    plot(indicator, fill=1, wait=0, cmm="Indicateur d'erreur - iter "+iter); // Affichage des zones à raffiner
+
+    // Adaptation du maillage selon l'indicateur d'erreur
+    Tube2D = adaptmesh(Tube2D, indicator, err=err0, nbvx=200000, hmin=hmin, hmax=hmax); // Raffinage/déraffinage adaptatif
+
+    // Création des nouveaux espaces d'éléments finis sur le maillage adapté
+    fespace Vh2new(Tube2D, P2);        // Nouvel espace P2 pour la vitesse
+    fespace Vhnew(Tube2D, P1);         // Nouvel espace P1 pour la pression
+
+    // Interpolation des solutions anciennes sur les nouveaux espaces
+    Vh2new uxnew = ux;                 // Interpolation de ux ancien vers nouveau maillage
+    Vh2new uynew = uy;                 // Interpolation de uy ancien vers nouveau maillage
+    Vhnew pnew = p;                    // Interpolation de p ancien vers nouveau maillage
+
+    // Transfert des solutions interpolées vers les variables principales
+    ux = uxnew;                        // Mise à jour ux avec valeurs interpolées
+    uy = uynew;                        // Mise à jour uy avec valeurs interpolées
+    p = pnew;                          // Mise à jour p avec valeurs interpolées
+    
+    cout << "Nombre d'elements apres adaptation : " << Tube2D.nt << endl; // Affichage taille du nouveau maillage
+}
+
+// ==========================================
+// Affichage et visualisation des résultats finaux
+// ==========================================
+// Note: La résolution finale a déjà été effectuée lors de la dernière itération de la boucle
+
+// Affichage du maillage final adapté après toutes les itérations
+plot(Tube2D, wait=1, cmm="Maillage adapte final"); // Visualization du maillage final avec adaptation
+
+// Affichage du champ de vitesse final (vecteurs [ux, uy])
+plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse finale [ux,uy]"); // Champ vectoriel de vitesse
+
+// Affichage du champ de pression final
+plot(p, value=1, fill=1, wait=1, cmm="Pression finale"); // Champ scalaire de pression
+
+// ==========================================
+// Sauvegarde du maillage final et des solutions
+// ==========================================
+
+
+// Sauvegarde des coordonnées (x, y) des sommets du maillage
+ofstream fileNodes("nodes.txt");    // Ouverture du fichier de sortie pour les nœuds
+for (int i = 0; i < Tube2D.nv; i++) { // Itération sur tous les nœuds du maillage
+    fileNodes << Tube2D(i).x << " " << Tube2D(i).y << endl; // Sauvegarde: abscisse et ordonnée
+}
+
+// Sauvegarde des champs de vitesse (composantes ux et uy) à chaque nœud
+ofstream fileUx("ux.txt");          // Ouverture fichier pour composante x de la vitesse
+ofstream fileUy("uy.txt");          // Ouverture fichier pour composante y de la vitesse
+for (int i = 0; i < Tube2D.nv; i++) { // Itération sur tous les nœuds
+    real xi = Tube2D(i).x;          // Récupération abscisse du nœud i
+    real yi = Tube2D(i).y;          // Récupération ordonnée du nœud i
+    fileUx << ux(xi, yi) << endl;   // Sauvegarde vitesse horizontale au nœud (xi, yi)
+    fileUy << uy(xi, yi) << endl;   // Sauvegarde vitesse verticale au nœud (xi, yi)
+}
+
+// Sauvegarde du champ de pression aux nœuds du maillage
+ofstream fileP("p.txt");            // Ouverture du fichier pour la pression
+for (int i = 0; i < p[].n; i++)     // Itération sur tous les degrés de liberté pression
+    fileP << p[][i] << endl;        // Sauvegarde valeur pression au DDL i
