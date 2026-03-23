@@ -10,30 +10,30 @@ from scipy.special import ellipk, ellipe
 from scipy.integrate import solve_ivp
 
 
-D = 0.0036
-L = 0.027
+D = 0.019
+L = 0.19
 
 # =========================
 # PARAMÈTRES DES BOBINES
 # =========================
 # Constantes physiques et paramètres géométriques
-R_coil = 3*D/3          # Rayon de la spire (en mètres)
+R_coil = D/3          # Rayon de la spire (en mètres)
 I = 1 # Courant traversant la spire (en ampères)   <---------------
 N = 100            # Nombre total de spires
 spacing = 0.001    # Espacement entre les spires (en mètres)
 mu0 = 4 * np.pi * 1e-7   # Perméabilité magnétique du vide (H/m)
 B0 = 200e-7  #
 
-x_coil = L/5 
-y_coil = 0.0   
-z_coil = 0.0
+x_coil = 0.0
+y_coil = D/2   
+z_coil = -0.054
 
-x_coils = np.array([L/5, L- L/5])
-z_coils = np.array([-0.052, -0.052])
+x_coils = np.array([0.0, 0.0])
+z_coils = np.array([0.073, 0.073])
 
-z0=-0.052
+z0=z_coil 
 
-def B_spire(x, z, z0=-0.052):
+def B_spire(x, z, z0=-0.0):
     """
     Calcule le champ magnétique (Bx, Bz) produit par une spire circulaire
     de rayon R, parcourue par un courant I, au point (x, z).
@@ -191,7 +191,7 @@ print(B)
 
 
 x = np.linspace(0, L, 80)
-z = np.linspace(-D/2, D/2, 80)
+z = np.linspace(0, D, 80)
 #x = np.linspace(-50*R_coil, 55*R_coil, 80)
 #z = np.linspace(-50*R_coil +z0, 55*R_coil + z0, 80)
 X, Z = np.meshgrid(x, z)
@@ -202,11 +202,9 @@ Bz = np.zeros_like(Z)
 
 for i in range(X.shape[0]):
     for j in range(X.shape[1]):
-        for x_coil in x_coils :
-            #Bx[i,j], Bz[i,j] = B_N_spires(X[i,j] - x_coil, 0.0, Z[i,j])
-            bx, bz = B_N_spires(X[i,j] - x_coil, Z[i,j] - z_coil)
-            Bx[i,j] += bx
-            Bz[i,j] += bz
+        bx, bz = B_N_spires(X[i,j] - x_coil, Z[i,j] - z_coil)
+        Bx[i,j] += bx
+        Bz[i,j] += bz
 
 plt.figure(figsize=(7,7))
 strm = plt.streamplot(X, Z, Bx, Bz, density=2.5, linewidth=0.7, arrowsize=1.2, color=np.sqrt(Bx**2 + Bz**2))

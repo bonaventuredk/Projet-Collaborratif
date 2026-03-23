@@ -1,4 +1,7 @@
-import numpy as np 
+import numpy as np
+from scipy.optimize import minimize
+
+
 
 from SolveParticule5 import run_multi_lap, draw_domain
 
@@ -54,11 +57,12 @@ bobine = {"L": 0,
           "B0" : 0
 }
 
-
 def parameters(L,I, Rayons, Nb_spires, Spaciing_spire, x_coils, y_coils, z_coils, B0s):
     return [L,I,Rayons, Nb_spires, Spaciing_spire, x_coils, y_coils, z_coils, B0s]
 
-def optimize(parameters_list): 
+def optimize(parameters): 
+
+    print("x[0] :", parameters[0])
 
     dt = 1e-3                     # Pas de temps (s)
     n1 = 0                        # Nombre de particules neutres (H20)
@@ -70,19 +74,32 @@ def optimize(parameters_list):
     n_particles = {'Na+': n2, 'Cl-': n3, 'H20': n1}
     TOTAL_PARTICULES = n1 + n2 + n3
 
-    bobine["L"] = parameters_list[0]    
-    bobine["I"] = parameters_list[1]
-    bobine["Rayon"] = parameters_list[2]
-    bobine["Nb_spire"] = parameters_list[3]
-    bobine["spacing"] = parameters_list[4]
-    bobine["x_coil"] = parameters_list[5]
-    bobine["y_coil"] = parameters_list[6]
-    bobine["z_coil"] = parameters_list[7]
-    bobine["B0"] = parameters_list[8]
+    Rayons = D/3
+    Nb_spires = 100
+    Spaciing_spire = 0.001
+    L = 0.076
+    x_coil = 0.0
+    y_coil = D/2
+    z_coil = -0.054
+    B0 = 200e-7
+
+
+
+    bobine["L"] = L   
+    bobine["I"] = parameters[0]
+    bobine["Rayon"] = parameters[1]
+    bobine["Nb_spire"] = N
+    bobine["spacing"] = parameters[2]
+    bobine["x_coil"] = x_coil
+    bobine["y_coil"] = y_coil
+    bobine["z_coil"] = z_coil
+    bobine["B0"] = parameters[3]
 
     
   
     #results = solve_particule(p)
+    print("bobine :", bobine)
+    print("parameters :", parameters)
     _, __, bilan_detail_par_tour = run_multi_lap(n_particles, total_laps, dt, bobine, verbose=False)
 
     Na_in_bot = 0.0
@@ -96,68 +113,41 @@ def optimize(parameters_list):
     Na_in_bot /= number_of_runs
     Cl_in_top /= number_of_runs
 
+    print("score :", objective(Na_in_bot,Cl_in_top, Na_tot=n2, Cl_tot=n3))
+
     return objective(Na_in_bot,Cl_in_top, Na_tot=n2, Cl_tot=n3)
 
 def objective(Na_in_bot, Cl_in_top, Na_tot, Cl_tot):
     return (Na_in_bot + Cl_in_top)/(Na_tot+Cl_tot)
 
+#cons = ({'A':'N', 'B':'M'},{'A':'N', 'B':'M'})
 
-def main():
-    optimal_parameters = bobine
-    max_score= 0.0
-    print("OptiBobine.py")
-    print(f"Initial parameters: {optimal_parameters} with score {max_score:.4f}")
+#cons = ({'type':'ineq', 'fun': lambda x : x - 10 })
+cons = None
 
-    #optimisateur naif
-    """ 
-    for I in Is: 
-        for rayon in R_coils: 
-            for nb_spire in Nb_spires: 
-                for spacing in spacing_spires: 
-                    for x_coil in x_coils: 
-                        for y_coil in y_coils: 
-                            for z_coil in z_coils: 
-                                for B0 in B0s: 
-                                    parameters_list = parameters(I, rayon, nb_spire, spacing, x_coil, y_coil, z_coil, B0)
-                                    score = optimize(parameters_list)
-                                    if score > max_score:
-                                        max_score = score
-                                        optimal_parameters = parameters_list
-                                        print(f"New optimal parameters found with score {score:.4f}: {optimal_parameters}")
-    """
+bnds = [(0,10),(0,D),(1e-5, 1e-2),(1e-7,1e-4)]
 
-    #Monte carlo
-    number_of_runs = 10
-    for _ in range(number_of_runs):
-        L =np.random.choice(Ls) # Longueur totale du domaine (m)
-        I = np.random.randint(1, Imax)
-        rayon = np.random.uniform(D/3, D)
-        nb_spires = np.random.randint(100, 1000)
-        nb_spires = 100
-        spacing = np.random.uniform(0.0001, 0.01)
-        spacing = 0.001
-        x_coil = 0.0
-        y_coil = D/2
-        z_coil = np.random.choice(z_coils) 
-        B0 = np.random.uniform(0,1e-4)
-        B0 = 200e-7
+mean_B0 = (1e-7 + 1e-4)/2
+var_B0 = (1e-4 - 1e-7)
 
-        #print("L :",L)
-        #L = 0.038
-        xmur = L - Lwall  
-
-        parameters_list = parameters(L, I, rayon, nb_spires, spacing, x_coil, y_coil, z_coil, B0)
-        print(f"Testing parameters: {parameters_list}")
-        score = optimize(parameters_list)
-        print(f"Tested parameters: {parameters_list} with score {score:.4f}")
-        if score > max_score:
-            max_score = score
-            optimal_parameters = parameters_list
-            print(f"New optimal parameters found with score {score:.4f}: {optimal_parameters}")
-
-        draw_domain(L, xmur=xmur, D=D, lwall=lwall, eta=eta, Rtip=Rtip)
-
-    return 0
+mean_spacing = (0.01 + 0.0001)/2
+var_spacing = (0.01 - 0.0001)
 
 
-#main()
+x0 = np.zeros((4))
+x0[0] = 0.5
+x0[1] = (D/3)/D
+x0[2] = (0.001)/var_spacing
+x0[3] = (200e-7)/var_B0
+
+x0[0] = 1
+x0[1] = (D/3)
+x0[2] = (0.001)
+x0[3] = (200e-7)
+
+print("x[0] :", x0[0])
+
+
+print("Before Solving")
+result = minimize(optimize, x0, bounds = bnds, constraints= cons, method = 'BFGS')
+print("results :", result)

@@ -13,10 +13,11 @@ from scipy.interpolate import CloughTocher2DInterpolator
 
 # 1. PARAMÈTRES GÉOMÉTRIQUES DU DOMAINE (constants)
 
-L = 0.027              # Longueur totale du domaine (m)
-D = 0.0036             # Hauteur totale du domaine (m)
+L = 0.038              # Longueur totale du domaine (m)
+D = 0.019             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
+#Lwall = L / 8
+Lwall = D          # Longueur caractéristique du mur
 eta = D / 10           # Paramètre géométrique pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur de la zone d'influence autour du tip
@@ -30,7 +31,7 @@ I = 1                  # Courant traversant la spire (A)
 N = 100                # Nombre total de spires
 spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
-x_coil = L / 5         # Position suivant x de la bobine            <----
+x_coil = 0        # Position suivant x de la bobine            <----
 y_coil = D / 2         # Position suivant y de la bobine            <----
 z_coil = 0             # Position suivant z de la bobine            <----
 B0 = 200e-7            # Facteur de normalisation du champ (utilisé dans force de Lorentz)
@@ -214,7 +215,7 @@ def get_exit_zone(y):
     else:
         return "milieu"
 
-def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None, max_steps=100):
+def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None, max_steps=10000):
     """
     Simule une particule jusqu'à ce qu'elle sorte (x >= L).
 
@@ -255,6 +256,8 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         B = np.array([Bx, By, Bz]) / B0
 
         def f(u):  # Fonction pour RK2
+            print("np.shape(u) :", u)
+            print("np.shape(B) :", B)
             return charge_sign * np.cross(u, B)
 
         # RK2 pour la vitesse
@@ -500,7 +503,7 @@ if __name__ == "__main__":
     
     # Chargement des données FreeFem (si disponibles: les fichiers doivent être dans le même dossier)
    
-    ux_interp, uy_interp, points = load_freefem_data('nodes.txt', 'ux.txt', 'uy.txt')
+    ux_interp, uy_interp, points = load_freefem_data('nodes0.038.txt', 'ux0.038.txt', 'uy0.038.txt')
 
     
     
