@@ -14,9 +14,10 @@ from scipy.interpolate import CloughTocher2DInterpolator
 # 1. PARAMÈTRES GÉOMÉTRIQUES DU DOMAINE (constants)
 
 L = 0.027              # Longueur totale du domaine (m)
-D = 0.0036             # Hauteur totale du domaine (m)
+D = 0.019             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
+#Lwall = L / 8
+Lwall = D          # Longueur caractéristique du mur
 eta = D / 10           # Paramètre géométrique pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur de la zone d'influence autour du tip
@@ -25,16 +26,19 @@ xmur = L - Lwall       # Position du mur magnétique (début des pointes)
 
 # 2. PARAMÈTRES DES BOBINES (champ magnétique)
 
-#R_coil = D / 3         # Rayon de la spire (m)
-#I = 1                  # Courant traversant la spire (A)
-#N = 100                # Nombre total de spires
-#spacing = 0.001        # Espacement entre les spires (m)
+R_coil = D / 3         # Rayon de la spire (m)
+I = 1                  # Courant traversant la spire (A)
+N = 100                # Nombre total de spires
+spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
-#x_coil = L / 5         # Position suivant x de la bobine            <----
-#y_coil = D / 2         # Position suivant y de la bobine            <----
-#z_coil = 0             # Position suivant z de la bobine            <----
-#B0 = 200e-7            # Facteur de normalisation du champ (utilisé dans force de Lorentz)
+x_coil = L / 5         # Position suivant x de la bobine            <----
+y_coil = D / 2         # Position suivant y de la bobine            <----
+z_coil = 0             # Position suivant z de la bobine            <----
+B0 = 200e-7            # Facteur de normalisation du champ (utilisé dans force de Lorentz)
 
+#x_coil = 0.0
+#y_coil = D/2
+#z_coil = 0.0
 
 
 # 3. FONCTIONS DE CHARGEMENT DES DONNÉES FREEFEM
@@ -71,12 +75,12 @@ def B_spire_3D(x, y, z, I, R_coil, z0=0.0):
     Calcule le champ magnétique d'une spire circulaire.
     La spire est au centre (0,0,z0) dans le plan x-y.
     """
-    rho = np.sqrt(x**2 + y**2)  # Distance radiale
+    rho = np.sqrt(x*x + y*y)  # Distance radiale
     z_prime = z - z0  # Distance en z par rapport au centre
 
     if rho < 1e-12:  # Si on est au centre, éviter division par zéro
         return 0.0, 0.0, (mu0*I*R_coil**2)/(2*(R_coil**2+z_prime**2)**(3/2))
-
+    
     r1_sq = (R_coil-rho)**2 + z_prime**2
     r2_sq = (R_coil+rho)**2 + z_prime**2
 
@@ -87,11 +91,11 @@ def B_spire_3D(x, y, z, I, R_coil, z0=0.0):
     K = ellipk(k_sq)  # Intégrale elliptique complète de première espèce
     E = ellipe(k_sq)  # Intégrale elliptique complète de deuxième espèce
 
-    F = (R_coil**2 + rho**2 + z_prime**2)/r1_sq
+    F = (R_coil*R_coil + rho*rho + z_prime*z_prime)/r1_sq
 
     B_rho = C*(z_prime/rho)*(F*E - K)  # Composante radiale
 
-    Bz = C*(((R_coil**2 - rho**2 - z_prime**2)/r1_sq)*E + K)  # Composante z
+    Bz = C*(((R_coil*R_coil - rho*rho - z_prime*z_prime)/r1_sq)*E + K)  # Composante z
 
     Bx = B_rho*(x/rho)  # Composante x
     By = B_rho*(y/rho)  # Composante y
@@ -119,7 +123,7 @@ def B_N_spires(x, y, z,I, R_coil, nb_spires,spacing ):
 
     return Bx_total, By_total, Bz_total
 
-def damping_y(x, y, Uy, D, charge_sign,
+def damping_y(x, y, Uy, D, charge_sign, xmur,
               gamma_max=1000.0,
               delta_zone=4e-4,
               delta_zone2=1e-7,
@@ -208,7 +212,7 @@ def get_exit_zone(y):
     else:
         return "milieu"
 
-def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None, bobine= None, max_steps=100):
+def simulate_until_exit(X0, U0, charge_sign, dt,ux_interp=None, uy_interp=None, bobine= None,model = None, max_steps=100):
     """
     Simule une particule jusqu'à ce qu'elle sorte (x >= L).
 
@@ -217,6 +221,10 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
     Retourne trajectoire, vitesses, point de sortie, zone.
     """
     # Définition des quarts d'ellipse (centres et angles)
+
+    L = bobine["L"]
+    xmur = L - Lwall 
+
     centers = {
         "BL": (xmur, lwall + Rtip),
         "BR": (xmur, lwall + Rtip),
@@ -260,17 +268,21 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         
         B = np.array([Bx, By, Bz]) / B0
 
-        def f(u):  # Fonction pour RK2
+        def f(u, B):  # Fonction pour RK2
+            #print("np.shape(u) :", u)
+            #print("np.shape(B) :", B)
+            B = np.reshape(B, shape=(3,))
             return charge_sign * np.cross(u, B)
 
         # RK2 pour la vitesse
-        U_int = U[-1] + dt * f(U[-1])
-        U_new = U[-1] + dt/2 * (f(U[-1]) + f(U_int))
+        U_int = U[-1] + dt * f(U[-1], B)
+        U_new = U[-1] + dt/2 * (f(U[-1], B) + f(U_int, B))
 
         # Amortissement vertical
         U_new[1] += dt * damping_y(
             x, y, U_new[1],
-            D, charge_sign,
+            D, charge_sign, 
+            xmur=xmur,
             lwall=lwall,
             eta=eta
         )
@@ -367,7 +379,15 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, bobine, verbose=True):
 
     all_trajectories = []
     bilan_detail_par_tour = []  # pour stocker les stats détaillées par tour
-    ux_interp, uy_interp, points = load_freefem_data('nodes.txt', 'ux.txt', 'uy.txt')# Charger les données de FreeFem une fois pour tous les tours
+
+    L = bobine["L"]
+    xmur = L - Lwall 
+
+    filenameMesh = "Maillage_L"+ str(L) + ".mesh"
+    filenameNodes = "nodes"+ str(L) + ".txt"
+    filenameUx = "ux"+ str(L) + ".txt"
+    filenameUy = "uy"+ str(L) + ".txt"
+    ux_interp, uy_interp, points = load_freefem_data(filenameNodes, filenameUx, filenameUy)# Charger les données de FreeFem une fois pour tous les tours
 
     for lap in range(1, total_laps + 1):
         print(f"\n--- Tour {lap} ---")
@@ -460,7 +480,7 @@ def run_multi_lap(n_particles_by_charge, total_laps, dt, bobine, verbose=True):
 
 # 7. FONCTION DE DESSIN DU DOMAINE
 
-def draw_domain():
+def draw_domain(L, xmur, D=D, lwall=lwall, eta=eta, Rtip=Rtip):
     """
     Dessine le domaine avec les murs, pointes, etc.
     """
@@ -492,9 +512,9 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 10                        # Nombre de particules neutres (H20)
-    n2 = 10                        # Nombre de particules positives (Na+)
-    n3 = 10                        # Nombre de particules négatives (Cl-)
+    n1 = 0                     # Nombre de particules neutres (H20)
+    n2 = 100                        # Nombre de particules positives (Na+)
+    n3 = 100                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
 
     n_particles = {'Na+': n2, 'Cl-': n3, 'H20': n1}
@@ -506,14 +526,34 @@ if __name__ == "__main__":
     print(f"Nombre de tours maximum : {total_laps}")
     
     # Chargement des données FreeFem (si disponibles: les fichiers doivent être dans le même dossier)
+
    
     ux_interp, uy_interp, points = load_freefem_data('nodes.txt', 'ux.txt', 'uy.txt')
 
-    
+    bobine = {"L": 0,
+          "I" : 0,
+          "Rayon" :0,
+          "nb_spire":0,
+          "spacing" :0,
+          "x_coil" : 0,
+          "y_coil" : 0,
+          "z_coil" : 0,
+          "B0" : 0
+    }
+
+    bobine["L"] = 0.076   
+    bobine["I"] = 1
+    bobine["Rayon"] = D/2
+    bobine["Nb_spire"] = N
+    bobine["spacing"] = 0.001
+    bobine["x_coil"] = x_coil
+    bobine["y_coil"] = y_coil
+    bobine["z_coil"] = z_coil
+    bobine["B0"] = 200e-7
     
     # Lancement de la simulation
    
-    trajectories, particles_data, bilan_detail = run_multi_lap(n_particles, total_laps, dt, verbose=True)
+    trajectories, particles_data, bilan_detail = run_multi_lap(n_particles, total_laps, dt, bobine=bobine, verbose=True)
 
     # Tracé par tour (un graphique distinct pour chaque tour)
 
