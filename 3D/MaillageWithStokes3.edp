@@ -1,0 +1,93 @@
+load "msh3"
+
+// =====================
+// PARAMÈTRES
+// =====================
+real R = 0.0036;     // rayon
+real L = 0.027;      // longueur
+real nu = 1.0;       // viscosité
+
+// Débit imposé (optionnel, sert à fixer deltaP)
+real debit = -2.78e-6;
+
+// Relation de Poiseuille
+real deltaP = -8*nu*L*debit/(pi*R^4);
+
+// Pressions
+real Pe = deltaP/2;   // entrée
+real Ps = -deltaP/2;  // sortie
+
+// Maillage
+real h = R/20;
+int Nr = 40;
+int Nz = 40;
+
+// =====================
+// MAILLAGE 2D (DISQUE)
+// =====================
+border cercle(t=0, 2*pi)
+{
+    x = R*cos(t);
+    y = R*sin(t);
+    label = 1; // paroi latérale
+}
+
+mesh Th2D = buildmesh(cercle(Nr));
+
+// =====================
+// EXTRUSION 3D
+// =====================
+int[int] labTop = [100,100];   // sortie (z = L)
+int[int] labBot = [200,200];   // entrée (z = 0)
+
+mesh3 Th = buildlayers(Th2D, Nz,
+    zbound=[0, L],
+    labelup=labTop,
+    labeldown=labBot
+);
+
+// =====================
+// ESPACE EF
+// =====================
+fespace Vh(Th, [P2,P2,P2,P1]);
+Vh [ux,uy,uz,p], [vx,vy,vz,q];
+
+// =====================
+// MACROS
+// =====================
+macro grad(u) [dx(u),dy(u),dz(u)] //
+macro Grad(u1,u2,u3) [grad(u1),grad(u2),grad(u3)] //
+macro div(u1,u2,u3) (dx(u1)+dy(u2)+dz(u3)) //
+
+// =====================
+// PROBLÈME DE STOKES
+// =====================
+problem Stokes([ux,uy,uz,p],[vx,vy,vz,q]) =
+    int3d(Th)(
+          nu*(Grad(ux,uy,uz):Grad(vx,vy,vz))
+        - p*div(vx,vy,vz)
+        - q*div(ux,uy,uz)
+    )
+
+    // Pression imposée
+    + on(200, p = Pe)   // entrée
+    + on(100, p = Ps)   // sortie
+
+    // Paroi : adhérence
+    + on(1, ux=0, uy=0, uz=0);
+
+// =====================
+// RÉSOLUTION
+// =====================
+Stokes;
+
+// =====================
+// VISUALISATION
+// =====================
+plot(uz, wait=1, fill=1, cmm="Vitesse uz");
+
+// =====================
+// CALCUL DU DÉBIT
+// =====================
+real Q = int2d(Th2D)(uz); 
+cout << "Debit calcule = " << Q << endl;

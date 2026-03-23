@@ -1,0 +1,76 @@
+FEUILLE DE ROUTE – PROJET DÉSSALINISATEUR
+
+1.  Définition du problème physique Objectif : simuler la séparation de
+    particules (Na+, Cl-, H2O) dans un déssalinisateur. Couplage :
+    écoulement fluide (Stokes), champ magnétique, dynamique
+    particulaire, interactions géométriques.
+
+2.  Construction de la géométrie (FreeFem)
+
+-   Domaine rectangulaire (L, D)
+-   Ajout de murs internes
+-   Pointes modélisées par des arcs elliptiques
+-   Définition des frontières (c1 à c22)
+
+3.  Maillage
+
+-   Raffinement local sur les pointes
+-   Utilisation de la formule de Ramanujan pour approximer les arcs
+    elliptiques
+-   Discrétisation proportionnelle
+
+4.  Simulation de l’écoulement
+
+-   Équations de Stokes
+-   Conditions aux limites : entrée (profil de Poiseuille), sortie
+    (pression), parois (non-glissement)
+-   Méthode éléments finis P2-P1
+
+5.  Export des données
+
+-   Maillage (.mesh)
+-   Nœuds (nodes.txt)
+-   Vitesses (ux.txt, uy.txt)
+-   Pression (p.txt)
+
+6.  Reconstruction sous Python
+
+-   Chargement des données
+-   Interpolation (CloughTocher2DInterpolator)
+
+7.  Champ magnétique
+
+-   Calcul du champ d’une spire (intégrales elliptiques)
+-   Superposition de plusieurs spires
+
+8.  Dynamique des particules
+
+-   Force de Lorentz : F = q(v × B)
+-   Intégration temporelle RK2
+-   Ajout du champ de vitesse fluide
+-   Amortissement proche des parois
+
+9.  Interactions avec la géométrie
+
+-   Collisions avec les murs
+-   Projection sur les pointes elliptiques
+-   Glissement tangent
+
+10. Simulation multi-tours
+
+-   Réinjection des particules sortant au milieu
+-   Classification des sorties : bas (Na+), haut (Cl-), milieu
+    (recyclage)
+-   Suivi des trajectoires
+
+11. Analyse
+
+-   Statistiques par tour
+-   Répartition des particules
+-   Efficacité de séparation
+
+12. Visualisation
+
+-   Tracé des trajectoires
+-   Affichage du domaine et de la bobine
+-   Graphiques par tour
