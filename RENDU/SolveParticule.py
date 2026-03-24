@@ -150,7 +150,7 @@ def damping_y(x, y, Uy, D, charge_sign,
                           gamma_max * (delta_zone2 - abs(y - ywall)) / delta_zone2)
     return -damping * Uy
 
-def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
+def s_ellipse_damping(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
     """
     Projette la particule sur un quart d'ellipse et impose la condition d'adhérence (vitesse nulle).
 
@@ -293,7 +293,7 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         for key in ["BL", "BR", "TL", "TR"]:
             xc, yc = centers[key]
             thmin, thmax = angles[key]
-            X_new, U_new = stick_and_slide_on_quarter_ellipse(
+            X_new, U_new = s_ellipse_damping(
                 X_new, U_new,
                 xc, yc,
                 delta, Rtip,
@@ -546,9 +546,9 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 10                       # Nombre de particules neutres (H20)
-    n2 = 10                        # Nombre de particules positives (Na+)
-    n3 = 10                        # Nombre de particules négatives (Cl-)
+    n1 = 100                       # Nombre de particules neutres (H20)
+    n2 = 100                        # Nombre de particules positives (Na+)
+    n3 = 100                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
 
     n_particles = {'Na+': n2, 'Cl-': n3, 'H20': n1}
