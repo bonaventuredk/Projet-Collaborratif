@@ -65,13 +65,12 @@ for (int iter = 0; iter < nbiter; iter++) {                    // Itération de 
             // Terme incompressibilité: -q * div(u)
             - q * (dx(ux) + dy(uy)) 
         )
-        - int1d(Tube2D, 22)( Pe * vx )
-        + int1d(Tube2D, 11)( Ps * vx )
+        //- int1d(Tube2D, 22)( Pe * vx )
+        //+ int1d(Tube2D, 11)( Ps * vx )
         // Conditions aux limites sur l'entrée (bord 22: gauche)
         + on(22, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
         + on(22, p = Pe)                // Pression: imposée à l'entrée
         // Conditions aux limites sur la sortie (bord 11: droite, entre les murs)
-        + on(11, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
         + on(11, p = Ps)                // Pression: imposée à la sortie
         // Conditions aux limites sur tous les murs (no-slip: vitesse = 0)
         + on(1,2,4,5,6,7,8,9,10,12,13,14,15,16,17,18,20,21, ux=0, uy=0); // Murs: vitesse zéro

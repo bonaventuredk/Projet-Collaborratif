@@ -11,11 +11,11 @@ real D = 0.0036;  // soit 3.6 mm      // Diamètre :Largeur du domaine en (2D)
 //real delta = 6*R;
 
 // Paramètres géométriques du cylindre
-real R = 0.1;//D/2;          // Rayon du cylindre
+real R = D/2;          // Rayon du cylindre
 
-real L = 0.3;//0.027;          // Longueur du cylindre (direction z)
-real hi = 0.01;//0.0001;
-real hi2 = 0.01;//0.0000001;        // Taille des éléments du maillage
+real L = 0.027;          // Longueur du cylindre (direction z)
+real hi = 0.0001;
+real hi2 = 0.0000001;        // Taille des éléments du maillage
 int Nz = int(L/hi) + 1; // Nombre de couches en z
 
 // Angle d'ouverture pour la surface interne courbée
