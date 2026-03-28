@@ -13,8 +13,8 @@ from scipy.interpolate import CloughTocher2DInterpolator
 
 # 1. PARAMÈTRES GÉOMÉTRIQUES DU DOMAINE (constants)
 
-L = 0.027              # Longueur totale du domaine (m)
-D = 0.0036             # Hauteur totale du domaine (m)
+L = 0.027              # Longueur totale du domaine (m) (fixée initialement pour les tests mais sera optimisée plus tard)
+D = 0.00276             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
 Lwall = D              # Longueur caractéristique du mur
 eta = D / 10           # Paramètre géométrique pour définir Rtip
@@ -26,14 +26,14 @@ xmur = L - Lwall       # Position du mur magnétique (début des pointes)
 # 2. PARAMÈTRES DES BOBINES (champ magnétique)
 
 R_coil = D / 3         # Rayon de la spire (m)
-I = 1                  # Courant traversant la spire (A)
+I = 0.01                  # Courant traversant la spire (A)
 N = 30                # Nombre total de spires
 spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
 x_coil = L / 5         # Position suivant x de la bobine            <----
 y_coil = D / 2         # Position suivant y de la bobine            <----
 z_coil = 0             # Position suivant z de la bobine            <----
-B0 = 200e-7               # Facteur de normalisation du champ (utilisé dans force de Lorentz)
+B0 = 3e-7           # Facteur de normalisation du champ (utilisé dans la force de Lorentz)
 
 
 
@@ -150,7 +150,7 @@ def damping_y(x, y, Uy, D, charge_sign,
                           gamma_max * (delta_zone2 - abs(y - ywall)) / delta_zone2)
     return -damping * Uy
 
-def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
+def s_ellipse_damping(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
     """
     Projette la particule sur un quart d'ellipse et impose la condition d'adhérence (vitesse nulle).
 
@@ -254,10 +254,24 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         
         B = np.array([Bx, By, Bz]) / B0
 
-        def f(u):  # Fonction pour RK2
-            return charge_sign * np.cross(u, B)
-
-        # RK2 pour la vitesse
+        # Champ de vitesse fluide
+        if ux_interp is not None and uy_interp is not None:
+            ux_flow = ux_interp(x, y)
+            uy_flow = uy_interp(x, y)
+        
+            if np.isnan(ux_flow): ux_flow = 0
+            if np.isnan(uy_flow): uy_flow = 0
+        else:
+            ux_flow = 0
+            uy_flow = 0
+        
+        u_flow = np.array([ux_flow, uy_flow, 0.0])
+        
+        def f(u):
+            # vitesse totale utilisée dans la force de Lorentz
+            return charge_sign * np.cross(u + u_flow, B)
+        
+        # Schéma de Heun
         U_int = U[-1] + dt * f(U[-1])
         U_new = U[-1] + dt/2 * (f(U[-1]) + f(U_int))
 
@@ -283,17 +297,15 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
             ux_flow = 0
             uy_flow = 0
         
-        # vitesse totale = particule + fluide
-        U_total = U_new + np.array([ux_flow, uy_flow, 0.0])
         
         # Position mise à jour
-        X_new = X[-1] + dt * U_total
+        X_new = X[-1] + dt * U_new
 
         # Projection sur les quarts d'ellipse
         for key in ["BL", "BR", "TL", "TR"]:
             xc, yc = centers[key]
             thmin, thmax = angles[key]
-            X_new, U_new = stick_and_slide_on_quarter_ellipse(
+            X_new, U_new = s_ellipse_damping(
                 X_new, U_new,
                 xc, yc,
                 delta, Rtip,
@@ -474,7 +486,7 @@ def draw_domain():
     # ===================================================
     # Paramètres géométriques (à ajuster si nécessaire)
     # ===================================================
-    D = 0.0036            # Largeur du domaine (3.6 mm)
+    D = 0.00276            # Largeur du domaine (3.6 mm)
     L = 0.027             # Longueur totale
     lwall = D / 10        # Hauteur des murs
     Lwall = L / 8         # Position horizontale du mur (depuis la gauche)
@@ -546,7 +558,7 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 0                       # Nombre de particules neutres (H20)
+    n1 = 100                       # Nombre de particules neutres (H20)
     n2 = 100                        # Nombre de particules positives (Na+)
     n3 = 100                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
