@@ -11,8 +11,8 @@
 // ==========================================
 // Paramètres généraux du domaine
 // ==========================================
-real D = 0.0036;  // (soit 3.6 mm)      // Diamètre :Largeur du domaine en (2D)
-real L = 0.027;           // Longueur totale du domaine 
+real D = 0.00276;  // (soit 2.76 mm)      // Diamètre :Largeur du domaine en (2D)
+real L = 0.027;           // Longueur totale du domaine (fixée initialement pour les tests mais sera optimisée plus tard)
 
 // Paramètres des murs
 real lwall = D/10;      // Hauteur des murs
@@ -214,11 +214,11 @@ real h = pow(a-b,2)/pow(a+b,2); // Paramètre d'excentricité (h = ((a-b)/(a+b))
 real Pellipse = pi*(a+b)*(1 + (3*h)/(10 + sqrt(4 - 3*h))); // Approximation précise du périmètre
 
 // Pas angulaire (amplitude angulaire) de chaque portion de la pointe
-real dt1 = abs(3*pi/2 - (pi+pi/3)); // Angle arc c5/c13 (différence entre 270° et 300°)
-real dt2 = abs((pi+pi/3) - (pi+pi/6)); // Angle arc c6/c14 (différence entre 300° et 330°)
-real dt3 = abs((pi+pi/6) - (pi-pi/6)); // Angle arc c7/c15 (différence entre 330° et 30°)
-real dt4 = abs((pi-pi/6) - (pi-pi/3)); // Angle arc c8/c16 (différence entre 30° et 60°)
-real dt5 = abs((pi-pi/3) - pi/2);     // Angle arc c9/c17 (différence entre 60° et 90°)
+real dt1 = abs(3*pi/2 - (pi+pi/3)); // Angle arc c5/c13 
+real dt2 = abs((pi+pi/3) - (pi+pi/6)); // Angle arc c6/c14 
+real dt3 = abs((pi+pi/6) - (pi-pi/6)); // Angle arc c7/c15 
+real dt4 = abs((pi-pi/6) - (pi-pi/3)); // Angle arc c8/c16 
+real dt5 = abs((pi-pi/3) - pi/2);     // Angle arc c9/c17 
 
 // Longueur de chaque arc (longueur curviligne sur l'ellipse) 
 real Lc1 = Pellipse * dt1 / (2*pi);   // Longueur arc 1 (proportionnelle à l'angle)
@@ -248,7 +248,7 @@ mesh Tube2D = buildmesh(
   + c18(Lwall*N) + c19(lwall*N)           // Fin du mur haut et bord droit haut
   + c20(Lwall*N) + c21(xmur*N) + c22(D*N) // Bord haut et bord gauche complet
 );
-plot(Tube2D, wait = 1, cmm="Maillage initial");
+plot(Tube2D, wait = 0, cmm="Maillage initial");
 
 // Sauvegarde du maillage final au format .mesh 
 savemesh(Tube2D, "Maillage.mesh"); // Enregistrement du maillage adapté final

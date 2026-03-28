@@ -14,22 +14,22 @@ include "Maillage2D.edp"
 // Paramètres de l'adaptation (calcul du gradient et raffinement)
 // ==============================================================
 int nbiter = 4;               // nombre d'itérations d'adaptation
-real err0 = 0.01*60;            // tolérance relative (plus petit = plus raffiné)
+real err0 = 0.5;            // tolérance relative (plus petit = plus raffiné)
 real hmin = D/1000;           // taille minimale des arêtes
 real hmax = D/10;             // taille maximale des arêtes
 
 // Paramètres physiques
 
 real debit = -2.778e-6; // 10 L/h
-real deltaP = -24*L*debit/(D^3);
+real nu = 1.005e-6;
+real deltaP = -24*nu*L*debit/(D^3);
 real Pe = deltaP/2;
 real Ps = -deltaP/2;
-real nu = 1.005e-6;
 
-// Profil de vitesse parabolique (Poiseuille) à l'entrée et à la sortie
+
+// Profil de vitesse parabolique (Poiseuille) à l'entrée et à la sortie(opposé)
 // On suppose que la hauteur du canal est D, et la longueur L
-func uinx = deltaP * y * (D - y) / (4 * L); // vitesse horizontale
-real kappa = 1e6; // constante pour ramener le résultat à la meme echelle
+func uinx = deltaP * y * (D - y) / (4 * nu * L); // vitesse horizontale
 
 // Définition des espaces d'éléments finis sur le maillage courant
 fespace Vh2(Tube2D, P2);      // Espace P2 pour la vitesse (polynômes de degré 2, plus précis)
@@ -58,15 +58,15 @@ for (int iter = 0; iter < nbiter; iter++) {                    // Itération de 
     // ==========================================
     problem Stokes ([ux, uy, p], [vx, vy, q]) =
         int2d(Tube2D)(                  // Intégrale sur le domaine 2D
-            // Terme viscosité (déformation): ν * (∇u : ∇v)
-            nu * (dx(ux)*dx(vx) + dy(ux)*dy(vx) + dx(uy)*dx(vy) + dy(uy)*dy(vy)) * kappa
+            // Terme viscosité (déformation): nu * (∇u : ∇v)
+            nu * (dx(ux)*dx(vx) + dy(ux)*dy(vx) + dx(uy)*dx(vy) + dy(uy)*dy(vy)) 
             // Terme pression-divergence: -p * div(v)
             - p * (dx(vx) + dy(vy))
             // Terme incompressibilité: -q * div(u)
             - q * (dx(ux) + dy(uy)) 
         )
-        //- int1d(Tube2D, 22)( Pe * vx )
-        //+ int1d(Tube2D, 11)( Ps * vx )
+        - int1d(Tube2D, 22)( Pe * vx )
+        + int1d(Tube2D, 11)( Ps * vx )
         // Conditions aux limites sur l'entrée (bord 22: gauche)
         + on(22, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
         + on(22, p = Pe)                // Pression: imposée à l'entrée
@@ -78,8 +78,9 @@ for (int iter = 0; iter < nbiter; iter++) {                    // Itération de 
     // Résolution du système linéaire de Stokes
     Stokes;                             // Appel du solveur FreeFEM
 
+    plot([ux,uy], value=1, fill=1, wait=0, cmm="Vitesse  [ux,uy]"); 
     // Calcul de l'indicateur d'erreur : norme du gradient de vitesse (pour adapter le maillage)
-    indicator = sqrt( dx(ux)^2 + dy(ux)^2 + dx(uy)^2 + dy(uy)^2 ); // ||∇u|| qui mesure le taux de déformation
+    indicator = sqrt( dx(ux)^2 + dy(ux)^2 + dx(uy)^2 + dy(uy)^2 ); // ||grad u|| qui mesure le taux de déformation
 
     // Visualisation de l'indicateur d'erreur pour suivi de convergence
     plot(indicator, fill=1, wait=0, cmm="Indicateur d'erreur - iter "+iter); // Affichage des zones à raffiner
@@ -107,13 +108,12 @@ for (int iter = 0; iter < nbiter; iter++) {                    // Itération de 
 // ==========================================
 // Affichage et visualisation des résultats finaux
 // ==========================================
-// Note: La résolution finale a déjà été effectuée lors de la dernière itération de la boucle
 
 // Affichage du maillage final adapté après toutes les itérations
-plot(Tube2D, wait=1, cmm="Maillage adapte final"); // Visualization du maillage final avec adaptation
+plot(Tube2D, wait=1, cmm="Maillage adapte final (Appuyer ENTER pour voir la suite)"); // Visualization du maillage final avec adaptation
 
 // Affichage du champ de vitesse final (vecteurs [ux, uy])
-plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse finale [ux,uy]"); // Champ vectoriel de vitesse
+plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse finale [ux,uy] (Appuyer ENTER pour voir la suite)"); // Champ vectoriel de vitesse
 
 // Affichage du champ de pression final
 plot(p, value=1, fill=1, wait=1, cmm="Pression finale"); // Champ scalaire de pression
