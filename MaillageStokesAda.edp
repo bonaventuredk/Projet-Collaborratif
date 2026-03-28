@@ -1,8 +1,11 @@
 // ==========================================
 // Paramètres généraux du domaine
 // ==========================================
+
+
+//real Flag = strtod(ARGV[3]);
 real D = 0.019;  // soit 1.9 cm      // Diamètre :Largeur du domaine en (2D)
-real L = 0.19;           // Longueur totale du domaine 
+real L = strtod(ARGV[3]);          // Longueur totale du domaine 
 
 // Paramètres des murs
 real lwall = D/10;      // Hauteur des murs
@@ -128,7 +131,7 @@ mesh Tube2D = buildmesh(
   + c18(Lwall*N) + c19(lwall*N)                   // fin mur haut + bord haut droit
   + c20(Lwall*N) + c21(xmur*N) + c22(D*N)       // haut et gauche
 );
-plot(Tube2D, wait = 1);
+//plot(Tube2D, wait = 1);
 // Sauvegarde du maillage au format FreeFem
 string filenameMesh = "Maillage_L"+ L + ".mesh";
 savemesh(Tube2D, filenameMesh);
@@ -192,7 +195,7 @@ Stokes;
 // Affichage des résultats
 //plot(ux, value=1, fill=1, wait=1, cmm="Vitesse horizontale ux");
 //plot(uy, value=1, fill=1, wait=1, cmm="Vitesse verticale uy");
-plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
+//plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
 //plot([ux,uy], fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
 //plot(p, value=1, fill=1, wait=1, cmm="Pression");
 

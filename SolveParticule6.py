@@ -50,7 +50,7 @@ mu0     = 4 * np.pi * 1e-7  # Perméabilité magnétique du vide (H/m)
 x_coil  = L / 5             # Position suivant x de la bobine
 x_coil  = 0.00948 
 y_coil  = D / 2             # Position suivant y de la bobine
-z_coil  = 0                  # Position suivant z de la bobine
+z_coil  = -0.0054                  # Position suivant z de la bobine
 B0      = 200e-7             # Facteur de normalisation du champ
 B0      = 4.208e-08
 
@@ -570,7 +570,7 @@ if __name__ == "__main__":
     print(f"Nombre de tours maximum    : {total_laps}")
 
     ux_interp, uy_interp, points = load_freefem_data(
-        'nodes0.076.txt', 'ux0.076.txt', 'uy0.076.txt'
+        'nodes.txt', 'ux.txt', 'uy.txt'
     )
 
     L_sim = 0.076
@@ -589,13 +589,13 @@ if __name__ == "__main__":
     #### Configuration Bobine 
     bobine = {
         "L"        : L_sim,
-        "I"        : 1.5,
-        "Rayon"    : D / 2,
+        "I"        : 1,
+        "Rayon"    : D / 3,
         "Nb_spire" : 100,
-        "spacing"  : 0.003005,
-        "x_coil"   : 0.00948,
+        "spacing"  : 0.001,
+        "x_coil"   : 0.0,
         "y_coil"   : D / 2,
-        "z_coil"   : 0.0,
+        "z_coil"   : -D - 0.0002,
         "B0"       : 200e-7,
     }
 

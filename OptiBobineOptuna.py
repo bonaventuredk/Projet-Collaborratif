@@ -73,7 +73,7 @@ except ImportError:
     print("  Puis relancez ce script.")
     sys.exit(1)
 
-from SolveParticule5 import (
+from SolveParticule6 import (
     run_multi_lap, make_fixed_y_positions,
     D, lwall, eta, Rtip, Lwall,
     load_freefem_data,
@@ -176,8 +176,8 @@ class DesalinisationTrial:
         L = trial.suggest_categorical("L", self.available_L)
 
         I        = trial.suggest_float("I",        0.1,  10.0)
-        R_coil   = trial.suggest_float("R_coil",   D/4,  2*D)
-        N_spires = trial.suggest_int  ("N_spires",  10,   500)
+        R_coil   = trial.suggest_float("R_coil",   D/4,  3*D/4)
+        N_spires = trial.suggest_int  ("N_spires",  10,   250)
 
         # Paramètre log-uniforme : l'espacement et B0 varient sur plusieurs
         # ordres de grandeur → meilleure exploration en espace log
@@ -188,6 +188,10 @@ class DesalinisationTrial:
         x_coil_frac = trial.suggest_float("x_coil_frac", 0.0, 0.8)
         x_coil      = x_coil_frac * L
 
+        y_coil= trial.suggest_float("x_coil_frac", 0.0, D)
+
+        z_coil = trial.suggest_float("x_coil_frac", -1.0, 1.0)
+
         bobine = {
             "L"        : L,
             "I"        : I,
@@ -195,8 +199,8 @@ class DesalinisationTrial:
             "Nb_spire" : N_spires,
             "spacing"  : spacing,
             "x_coil"   : x_coil,
-            "y_coil"   : D / 2,
-            "z_coil"   : 0.0,
+            "y_coil"   : y_coil,
+            "z_coil"   : z_coil,
             "B0"       : B0,
         }
 
@@ -242,7 +246,8 @@ class DesalinisationTrial:
                 f"score={score:.4f} ({score*100:.1f}%)"
                 f"  L={L:.4f}m  I={I:.2f}A  R={R_coil*1e3:.1f}mm"
                 f"  N={N_spires}  sp={spacing*1e3:.2f}mm"
-                f"  xc={x_coil*1e3:.1f}mm  B0={B0:.2e}T"
+                f"  xc={x_coil*1e3:.1f}mm  yc={y_coil*1e3:.1f}mm"
+                f"  zc={z_coil*1e3:.1f}mm  B0={B0:.2e}T"
             )
         elif self._trial_count % 25 == 0:
             print(f"[#{self._trial_count:4d}]   score={score:.4f}"
@@ -383,6 +388,8 @@ def main():
 
     # ── Détection des longueurs disponibles ──────────────────────────────────
     print("\nDétection des fichiers FreeFem disponibles...")
+
+    os.system('FreeFem++ MaillageStokesAda.edp')
     available_L = discover_available_lengths(args.folder)
 
     if not available_L:

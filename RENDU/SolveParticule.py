@@ -16,7 +16,7 @@ from scipy.interpolate import CloughTocher2DInterpolator
 L = 0.027              # Longueur totale du domaine (m)
 D = 0.0036             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
+Lwall = D              # Longueur caractéristique du mur
 eta = D / 10           # Paramètre géométrique pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur de la zone d'influence autour du tip
@@ -546,9 +546,9 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 10                       # Nombre de particules neutres (H20)
-    n2 = 10                        # Nombre de particules positives (Na+)
-    n3 = 10                        # Nombre de particules négatives (Cl-)
+    n1 = 0                       # Nombre de particules neutres (H20)
+    n2 = 100                        # Nombre de particules positives (Na+)
+    n3 = 100                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
 
     n_particles = {'Na+': n2, 'Cl-': n3, 'H20': n1}
