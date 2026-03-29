@@ -355,7 +355,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Optimisation bobine désalinisateur — Optuna TPE (Bayésien)"
     )
-    parser.add_argument("--trials",    type=int,   default=200,
+    parser.add_argument("--trials",    type=int,   default=2, #200
                         help="Nombre d'essais Optuna (défaut: 200)")
     parser.add_argument("--runs",      type=int,   default=3,
                         help="Runs stochastiques par essai si --no-fixed (défaut: 3)")

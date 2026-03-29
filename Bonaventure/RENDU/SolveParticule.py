@@ -1,6 +1,8 @@
 """
 Simulation multi-tours de particules dans le déssalinisateur
 
+Version : AVANT OPTIMISATION
+
 Auteurs : bonaventure & audrey & thomas
 """
 
@@ -13,10 +15,10 @@ from scipy.interpolate import CloughTocher2DInterpolator
 
 # 1. PARAMÈTRES GÉOMÉTRIQUES DU DOMAINE (constants)
 
-L = 0.0138            # Longueur totale du domaine (m)
+L = 0.027              # Longueur totale du domaine (m) (fixée initialement pour les tests mais sera optimisée plus tard)
 D = 0.00276             # Hauteur totale du domaine (m)
 lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L/8              # Longueur caractéristique du mur
+Lwall = L / 8          # Longueur caractéristique du mur
 eta = D / 10           # Paramètre géométrique pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur de la zone d'influence autour du tip
@@ -25,15 +27,15 @@ xmur = L - Lwall       # Position du mur magnétique (début des pointes)
 
 # 2. PARAMÈTRES DES BOBINES (champ magnétique)
 
-R_coil = D/2      # Rayon de la spire (m)
-I = 1.0                # Courant traversant la spire (A)
-N = 42                # Nombre total de spires
-spacing = 0.0025        # Espacement entre les spires (m)
+R_coil = D / 3         # Rayon de la spire (m)
+I = 0.01                  # Courant traversant la spire (A)
+N = 30                # Nombre total de spires
+spacing = 0.001        # Espacement entre les spires (m)
 mu0 = 4 * np.pi * 1e-7 # Perméabilité magnétique du vide (H/m)
-x_coil = 0.1*L      # Position suivant x de la bobine            <----
+x_coil = L / 5         # Position suivant x de la bobine            <----
 y_coil = D / 2         # Position suivant y de la bobine            <----
-z_coil =-0.054          # Position suivant z de la bobine            <----
-B0 = 4.768702722931376e-07             # Facteur de normalisation du champ (utilisé dans force de Lorentz)
+z_coil = 0             # Position suivant z de la bobine            <----
+B0 = 3e-7           # Facteur de normalisation du champ (utilisé dans la force de Lorentz)
 
 
 
@@ -150,7 +152,7 @@ def damping_y(x, y, Uy, D, charge_sign,
                           gamma_max * (delta_zone2 - abs(y - ywall)) / delta_zone2)
     return -damping * Uy
 
-def stick_and_slide_on_quarter_ellipse(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
+def s_ellipse_damping(X, U, xc, yc, a, b, theta_min, theta_max, eps=1e-7):
     """
     Projette la particule sur un quart d'ellipse et impose la condition d'adhérence (vitesse nulle).
 
@@ -254,13 +256,26 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
         
         B = np.array([Bx, By, Bz]) / B0
 
-        def f(u, B_vec):
-            B_vec = np.reshape(B_vec, (3,))
-            return charge_sign * np.cross(u, B_vec)
-
-        # RK2 pour la vitesse
-        U_int = U[-1] + dt * f(U[-1],B)
-        U_new = U[-1] + dt/2 * (f(U[-1],B) + f(U_int,B))
+        # Champ de vitesse fluide
+        if ux_interp is not None and uy_interp is not None:
+            ux_flow = ux_interp(x, y)
+            uy_flow = uy_interp(x, y)
+        
+            if np.isnan(ux_flow): ux_flow = 0
+            if np.isnan(uy_flow): uy_flow = 0
+        else:
+            ux_flow = 0
+            uy_flow = 0
+        
+        u_flow = np.array([ux_flow, uy_flow, 0.0])
+        
+        def f(u):
+            # vitesse totale utilisée dans la force de Lorentz
+            return charge_sign * np.cross(u + u_flow, B)
+        
+        # Schéma de Heun
+        U_int = U[-1] + dt * f(U[-1])
+        U_new = U[-1] + dt/2 * (f(U[-1]) + f(U_int))
 
         # Amortissement vertical
         U_new[1] += dt * damping_y(
@@ -284,17 +299,15 @@ def simulate_until_exit(X0, U0, charge_sign, dt, ux_interp=None, uy_interp=None,
             ux_flow = 0
             uy_flow = 0
         
-        # vitesse totale = particule + fluide
-        U_total = U_new + np.array([ux_flow, uy_flow, 0.0])
         
         # Position mise à jour
-        X_new = X[-1] + dt * U_total
+        X_new = X[-1] + dt * U_new
 
         # Projection sur les quarts d'ellipse
         for key in ["BL", "BR", "TL", "TR"]:
             xc, yc = centers[key]
             thmin, thmax = angles[key]
-            X_new, U_new = stick_and_slide_on_quarter_ellipse(
+            X_new, U_new = s_ellipse_damping(
                 X_new, U_new,
                 xc, yc,
                 delta, Rtip,
@@ -472,10 +485,17 @@ def draw_domain():
     """
     Dessine le domaine avec les murs
     """
-   
-    Rtip = eta / 2           # Rayon de base de la pointe
-    #delta = 6 * R         # Profondeur de la pointe
-    #xmur = L - Lwall      # Position horizontale du début du mur (côté droit)
+    # ===================================================
+    # Paramètres géométriques (à ajuster si nécessaire)
+    # ===================================================
+    D = 0.00276            # Largeur du domaine (3.6 mm)
+    L = 0.027             # Longueur totale
+    lwall = D / 10        # Hauteur des murs
+    Lwall = L / 8         # Position horizontale du mur (depuis la gauche)
+    eta = D / 10          # Épaisseur du mur
+    R = eta / 2           # Rayon de base de la pointe
+    delta = 6 * R         # Profondeur de la pointe
+    xmur = L - Lwall      # Position horizontale du début du mur (côté droit)
     n = 1.5               # Paramètre de forme de la pointe
     alpha = 2.0 / n       # Exposant pour la transformation
 
@@ -498,7 +518,7 @@ def draw_domain():
     # ===================================================
     # Fonction pour générer une pointe
     # ===================================================
-    def tip_curve(x_center, delta, Rtip, y_center, alpha, theta):
+    def tip_curve(x_center, delta, R, y_center, alpha, theta):
         """
         Calcule les coordonnées (x, y) des points d'une pointe.
         Utilise la transformation : xp = sign(cosθ) * |cosθ|^α, yp = sign(sinθ) * |sinθ|^α.
@@ -508,7 +528,7 @@ def draw_domain():
         xp = np.sign(ct) * np.abs(ct) ** alpha
         yp = np.sign(st) * np.abs(st) ** alpha
         x = x_center + delta * xp
-        y = y_center + Rtip * yp
+        y = y_center + R * yp
         return x, y
 
     # Angles paramétriques : de 270° à 90° (3π/2 à π/2)
@@ -517,13 +537,13 @@ def draw_domain():
     # ===================================================
     # Pointe inférieure
     # ===================================================
-    x_tip_bottom, y_tip_bottom = tip_curve(xmur, delta, Rtip, lwall + Rtip, alpha, theta)
+    x_tip_bottom, y_tip_bottom = tip_curve(xmur, delta, R, lwall + R, alpha, theta)
     plt.plot(x_tip_bottom, y_tip_bottom, 'k')
 
     # ===================================================
     # Pointe supérieure
     # ===================================================
-    x_tip_top, y_tip_top = tip_curve(xmur, delta, Rtip, D - lwall - eta + Rtip, alpha, theta)
+    x_tip_top, y_tip_top = tip_curve(xmur, delta, R, D - lwall - eta + R, alpha, theta)
     plt.plot(x_tip_top, y_tip_top, 'k')
 
     # ===================================================
@@ -540,7 +560,7 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 0                       # Nombre de particules neutres (H20)
+    n1 = 100                       # Nombre de particules neutres (H20)
     n2 = 100                        # Nombre de particules positives (Na+)
     n3 = 100                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
@@ -554,12 +574,8 @@ if __name__ == "__main__":
     print(f"Nombre de tours maximum : {total_laps}")
     
     # Chargement des données FreeFem (si disponibles: les fichiers doivent être dans le même dossier)
-
-    ux_file = "Uxs/ux" + str(L) +".txt"
-    uy_file = "Uys/uy" + str(L) +".txt"
-    nodes_file = "Nodes/nodes" + str(L) +".txt"
    
-    ux_interp, uy_interp, points = load_freefem_data(nodes_file, ux_file, uy_file)
+    ux_interp, uy_interp, points = load_freefem_data('nodes.txt', 'ux.txt', 'uy.txt')
 
     
     
