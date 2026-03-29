@@ -1,0 +1,127 @@
+load "msh3"
+
+
+// Paramètres géométriques du cylindre
+real R = 0.1;          // Rayon du cylindre
+real R2 = 0.05;        // Rayon interne (non utilisé dans ce script)
+real L = 0.3;          // Longueur du cylindre (direction z)
+real hi = 0.01;        // Taille des éléments du maillage
+int Nz = int(L/hi) + 1; // Nombre de couches en z
+
+// Angle d'ouverture pour la surface interne courbée
+real theta0 = 20 * pi/180; // 10 degrés en radians 
+
+// Points de départ et d'arrivée pour la courbe interne
+real xA = R*cos(theta0);
+real yA = R*sin(theta0);
+real xB = R*cos(pi - theta0); 
+real yB = R*sin(pi - theta0); 
+
+real xC = R*cos(pi + theta0);
+real yC = R*sin(pi + theta0);
+real xD = R*cos( - theta0); 
+real yD = R*sin(- theta0); 
+
+// Paramètres de discrétisation pour les arcs
+int Nc = 2 * int(pi * R / hi); // Nombre total de segments pour un cercle complet
+int Nsup = max(2, int(Nc * (pi - 2*theta0) / (2*pi))); // Segments pour l'arc supérieur
+int Ninf = max(2, int(Nc * (pi + 2*theta0) / (2*pi))); // Segments pour les arcs inférieurs 
+
+// Définition des frontières : arcs du cylindre
+border arcSup(t=theta0, pi-theta0) { x = R*cos(t); y = R*sin(t); label=1; } // Arc supérieur
+
+border arcInf1(t=pi-theta0, pi+theta0) { x = R*cos(t); y = R*sin(t); label=1; } // Arc inférieur gauche
+border arcInf2(t=-theta0, theta0) { x = R*cos(t); y = R*sin(t); label=1; } // Arc inférieur droit
+
+// Paramètres pour la courbe interne (bosse vers l'intérieur)
+real A = 0.05; // Amplitude de la courbure vers l'intérieur
+real B = -0.05;
+int Ncourbe = max(10, int(2*xA / hi)); // Nombre de segments pour la courbe
+
+// De A à B (pour la région inférieure)
+border CourbeAB(t=0,1) {
+    x = xA + (xB - xA)*t;          // Interpolation linéaire en x
+    y = yA + A * sin(pi*t);        // Bosse sinusoïdale (négative)
+    label = 30; // Label pour l'interface
+}
+// De B à A (pour la région supérieure)
+border CourbeBA(t=1,0) {
+    x = xA + (xB - xA)*t;
+    y = yA + A * sin(pi*t);
+    label = 30;
+}
+border CourbeCD(t=0,1) {
+    x = xC + (xD - xC)*t;          // Interpolation linéaire en x
+    y = yC + B * sin(pi*t);        // Bosse sinusoïdale (négative)
+    label = 30; // Label pour l'interface
+}
+// De B à A (pour la région supérieure)
+border CourbeDC(t=1,0) {
+    x = xC + (xD - xC)*t;
+    y = yC + B * sin(pi*t);
+    label = 30;
+}
+// Fonctions de transformation 2D utilisées pour déplacer et recaler un maillage.
+// Ici on applique une rotation de pi radians (180°) autour de l'origine.
+func phi1=x * cos(pi) + y * sin(pi);
+func phi2=-x * sin(pi) + y * cos(pi);
+
+// --- Maillages 2D des deux régions ---
+
+// Région supérieure (au-dessus de la courbe)
+mesh ThTop = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe));
+mesh ThBas = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe));
+// On applique une transformation à ThBas pour créer un maillage symétrique ou décalé avec phi1, phi2.
+ThBas = movemesh(ThBas, [phi1, phi2]);
+//ThTop = trunc(ThTop, region == 2);
+
+// Région inférieure (en dessous de la courbe)
+// Arcs inférieurs + courbes internes forment la partie inférieure du demi-cylindre.
+mesh ThBottom = buildmesh(arcInf1(Ninf) + arcInf2(Ninf) + CourbeAB(Ncourbe) + CourbeCD(Ncourbe));
+
+// Vérification des maillages 2D
+plot(ThTop, wait=1, cmm="Region superieure (2D)");
+plot(ThBas, wait=1, cmm="Region superieure (2D)");
+plot(ThBottom, wait=1, cmm="Region inferieure (2D)");
+
+real d = 0.1; 
+
+real r = R;
+real peri = 2*pi*r; 
+
+mesh ThDisque;
+border disque (t= 0,2*pi){x = r * cos (t); y = r* sin (t); label = 1;}; 
+int N = peri / (hi) + 1 ;	
+ThDisque = buildmesh (disque(N));
+ 
+
+real z0 = 0, z1 = 4*L/5;
+
+int[int] rup = [0, 10]; 
+ 
+int[int] rdown = [0, 20];
+
+mesh3 ThCylindre = buildlayers(ThDisque, Nz, zbound=[z0,z1], labelup = rup, labeldown = rdown);
+
+// --- Extrusion 3D ---
+
+// Labels pour les faces horizontales (doivent être de taille paire pour buildlayers)
+int[int] labelUp = [100, 100];   // Face supérieure (z = L)
+int[int] labelDown = [200, 200]; // Face inférieure (z = 0)
+
+// Extrusion des deux demi-cylindres en 3D
+// buildlayers crée un maillage 3D par empilement de couches à partir du maillage 2D fourni.
+// zbound donne la hauteur de la section extrudée.
+mesh3 ThTopCyl    = buildlayers(ThTop, Nz, zbound=[4*L/5, L],
+                                labelup=labelUp, labeldown=labelDown);
+mesh3 ThBottomCyl = buildlayers(ThBottom, Nz, zbound=[4*L/5, L],
+                                labelup=labelUp, labeldown=labelDown);
+mesh3 ThBasCyl    = buildlayers(ThBas, Nz, zbound=[4*L/5, L],
+                                labelup=labelUp, labeldown=labelDown);
+
+// Fusion : la surface interne (label 30) devient une interface commune
+// On assemble les demis-cylindres et le cylindre central unique en un maillage global 3D.
+mesh3 ThCylinder = ThTopCyl + ThBottomCyl + ThBasCyl + ThCylindre;
+
+// Visualisation du maillage 3D final
+plot(ThCylinder, wait=1, cmm="Cylindre avec surface interne courbee de largeur reduite");
