@@ -11,8 +11,8 @@
 // ==========================================
 // Paramètres généraux du domaine
 // ==========================================
-real D = 0.0036;  // (soit 3.6 mm)      // Diamètre :Largeur du domaine en (2D)
-real L = 0.027;           // Longueur totale du domaine 
+real D = 0.00276 ;  // soit 1.9 cm      // Diamètre :Largeur du domaine en (2D)
+real L = 0.027;          // Longueur totale du domaine 
 
 // Paramètres des murs
 real lwall = D/10;      // Hauteur des murs

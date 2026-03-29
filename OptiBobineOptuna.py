@@ -73,9 +73,9 @@ except ImportError:
     print("  Puis relancez ce script.")
     sys.exit(1)
 
-from SolveParticule6 import (
+from SolveParticule7 import (
     run_multi_lap, make_fixed_y_positions,
-    D, lwall, eta, Rtip, Lwall,
+    lwall, eta, Rtip, Lwall,
     load_freefem_data,
 )
 from scipy.interpolate import CloughTocher2DInterpolator
@@ -175,9 +175,11 @@ class DesalinisationTrial:
         # disponibles sans supposer d'ordre numérique.
         L = trial.suggest_categorical("L", self.available_L)
 
-        I        = trial.suggest_float("I",        0.1,  10.0)
-        R_coil   = trial.suggest_float("R_coil",   D/4,  3*D/4)
-        N_spires = trial.suggest_int  ("N_spires",  10,   250)
+        D = 0.00276  # diamètre fixe du domaine (non optimisé)
+
+        I        = trial.suggest_float("I",        0.001,  1.0)  # courant en ampères
+        R_coil   = trial.suggest_float("R_coil",   D/4,  D/2)
+        N_spires = trial.suggest_int  ("N_spires",  10,   150)
 
         # Paramètre log-uniforme : l'espacement et B0 varient sur plusieurs
         # ordres de grandeur → meilleure exploration en espace log
@@ -188,9 +190,11 @@ class DesalinisationTrial:
         x_coil_frac = trial.suggest_float("x_coil_frac", 0.0, 0.8)
         x_coil      = x_coil_frac * L
 
-        y_coil= trial.suggest_float("x_coil_frac", 0.0, D)
+        #y_coil= trial.suggest_float("x_coil_frac", 0.0, D)
+        y_coil = D/2
 
-        z_coil = trial.suggest_float("x_coil_frac", -1.0, 1.0)
+        #z_coil = trial.suggest_float("x_coil_frac", -1.0, 1.0)
+        z_coil = -0.054
 
         bobine = {
             "L"        : L,
@@ -389,7 +393,7 @@ def main():
     # ── Détection des longueurs disponibles ──────────────────────────────────
     print("\nDétection des fichiers FreeFem disponibles...")
 
-    os.system('FreeFem++ MaillageStokesAda.edp')
+    #os.system('FreeFem++ MaillageStokesAda.edp')
     available_L = discover_available_lengths(args.folder)
 
     if not available_L:
@@ -409,7 +413,6 @@ def main():
     available_L = sorted(interp_cache.keys())
 
     # ── Configuration ─────────────────────────────────────────────────────────
-    #available_L = 0.057
     N_NA  = args.particles
     N_CL  = args.particles
     N_H2O = 0
@@ -448,7 +451,7 @@ def main():
             load_if_exists= args.resume,
             sampler       = TPESampler(
                 seed                    = args.seed,
-                n_startup_trials        = 20,   # exploration aléatoire initiale
+                n_startup_trials        = 40,   # exploration aléatoire initiale
                 multivariate            = True, # tient compte des corrélations
                 consider_prior          = True,
                 consider_magic_clip     = True,
