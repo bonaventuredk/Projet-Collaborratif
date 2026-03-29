@@ -4,22 +4,22 @@ from SolveParticule5 import run_multi_lap, draw_domain
 
 
 
-Ls = np.linspace(0.038, 0.19, 9, endpoint=True) # Longueur totale du domaine (m)
-Ls[1] = 0.057
-Ls[4] = 0.114
+Ls = np.linspace(0.00552, 0.01656, 5, endpoint=True) # Longueur totale du domaine (m)
+#Ls[1] = 0.057
+#Ls[4] = 0.114
 print(Ls)
 
 #### Paramlètres physiques et géométriques
 
-L = 0.27              # Longueur totale du domaine (m)
-D = 0.019             # Hauteur totale du domaine (m)
-lwall = D / 10         # Épaisseur caractéristique du mur latéral
-Lwall = L / 8          # Longueur caractéristique du mur
+#L = 0.27              # Longueur totale du domaine (m)
+D = 0.00276            # Hauteur totale du domaine (m)
+#lwall = D / 10         # Épaisseur caractéristique du mur latéral
+#Lwall = L / 8          # Longueur caractéristique du mur
 Lwall = D
 eta = D / 10           # Paramètre géométrique pour définir Rtip
 Rtip = eta / 2         # Rayon de l'extrémité (tip)
 delta = 6 * Rtip       # Largeur de la zone d'influence autour du tip
-xmur = L - Lwall       # Position du mur magnétique (début des pointes)
+#xmur = L - Lwall       # Position du mur magnétique (début des pointes)
 mu0 = 4 * np.pi * 1e-7 
 
 N = 1000
@@ -129,7 +129,7 @@ def main():
     #Monte carlo
     number_of_runs = 10
     for _ in range(number_of_runs):
-        L =np.random.choice(Ls) # Longueur totale du domaine (m)
+        L = np.random.choice(Ls) # Longueur totale du domaine (m)
         I = np.random.randint(1, Imax)
         rayon = np.random.uniform(D/3, D)
         nb_spires = np.random.randint(100, 1000)

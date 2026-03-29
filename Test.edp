@@ -1,0 +1,7 @@
+//int n = getARGV("-n", 5);          // default = 5
+//string name = getARGV("-name", "default");
+
+cout << "n = " << ARGV[3] << endl;
+
+real n = strtod(ARGV[3]);
+//cout << "name = " << name << endl;

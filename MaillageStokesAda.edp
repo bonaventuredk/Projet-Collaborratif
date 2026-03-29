@@ -1,25 +1,34 @@
+/////////////////////////////////////////////////////////
+// Maillage + Résolution Navier Stokes pour le domaine 2D
+/////////////////////////////////////////////////////////
+
+// Groupe 2: 
+// --------
+    // 1. DOHEMETO Bonaventure
+    // 2. DRIEUX Audrey
+    // 3. FISK Thomas
+
 // ==========================================
 // Paramètres généraux du domaine
 // ==========================================
-real D = 0.019;  // soit 1.9 cm      // Diamètre :Largeur du domaine en (2D)
-real L = 0.19;           // Longueur totale du domaine 
+real D = 0.00276 ;  // soit 1.9 cm      // Diamètre :Largeur du domaine en (2D)
+real L = 0.01932;          // Longueur totale du domaine 
 
 // Paramètres des murs
 real lwall = D/10;      // Hauteur des murs
 real Lwall = L/8;       // Position horizontale du mur (distance depuis la gauche)
-Lwall = D; // --- IGNORE ---
-real eta = D/10;        // Largeur du mur
-real R = eta/2;          // Rayon du demi cercle à la pointe (petit rayon du futur ellipse)
-real delta = 6*R;         // Profondeur de la pointe (grand rayon du futur ellipse)
+real eta = D/10;        // Largeur du mur (épaisseur)
+real R = eta/2;          // Rayon du demi cercle à la pointe (petit rayon de la pointe)
+real delta = 6*R;         // Profondeur de la pointe (grand rayon du futur pointe)
 
 // Constante unique pour la position verticale du mur
-real xmur = L - Lwall;
+real xmur = L - Lwall;    // Position horizontale du début du mur (côté droit)
 
 // ==========================================
 // Bord du bas
 // ==========================================
-border c1 (t = 0, xmur) { x = t; y = 0; label = 1; };        // Partie gauche avant le mur
-border c2(t = xmur, L) { x = t; y = 0; label = 2; };        // Partie droite après le mur
+border c1 (t = 0, xmur) { x = t; y = 0; label = 1; };        // Partie gauche avant le mur (y=0)
+border c2(t = xmur, L) { x = t; y = 0; label = 2; };        // Partie droite après le mur (y=0)
 
 // ==========================================
 // Bord droit - côté bas
@@ -29,12 +38,68 @@ border c3 (t = 0, lwall) { x = L; y = t; label = 3; };       // Bord vertical ba
 // ==========================================
 // Mur du bas - pointe (demi-cercle) côté droit
 // ==========================================
-border c4 (t = L, xmur) { x = t; y = lwall; label = 4; };                     // Début du mur bas
-border c5 (t = 3*pi/2, pi+pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 5; };  
-border c6 (t = pi+pi/3, pi+pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 6; };  
-border c7 (t = pi+pi/6, pi-pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 7; };  
-border c8 (t = pi-pi/6, pi-pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 8; };
-border c9 (t = pi-pi/3, pi/2) { x = delta*cos(t) + xmur; y = R*sin(t) + lwall + R; label = 9; };  
+border c4 (t = L, xmur) { x = t; y = lwall; label = 4; };                     // Haut du segment horizontal du bas du mur (avant pointe)
+real n = 1.5; // Paramètre de forme pour la pointe
+
+// ==========================================
+// Pointe inférieure 
+// ==========================================
+// La pointe est divisée en 5 arcs pour une meilleure discrétisation
+
+border c5(t = 3*pi/2, pi+pi/3) {  // Arc inférieur gauche de la pointe basse (angle: 3*pi/2 à pi+pi/3)
+    real ct = cos(t);               // Calcul du cosinus de l'angle
+    real st = sin(t);               // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;           // Exposant dans la pointe
+    real xp = sign(ct) * abs(ct)^alpha;  // Coordonnée x normalisée de la pointe
+    real yp = sign(st) * abs(st)^alpha;  // Coordonnée y normalisée de la pointe
+    x = xmur + delta * xp;          // Coordonnée x réelle (decalée et mise à l'échelle)
+    y = lwall + R + R * yp;         // Coordonnée y réelle (déplacée vers le bas)
+    label = 5;                      // Étiquette pour identifier ce bord
+}
+
+border c6(t = pi+pi/3, pi+pi/6) {  // Arc inférieur central (angle: pi+pi/3 à pi+pi/6)
+    real ct = cos(t);                   // Calcul du cosinus de l'angle
+    real st = sin(t);                   // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;               // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha; // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha; // Coordonnée y de la pointe
+    x = xmur + delta * xp;              // Coordonnée x réelle
+    y = lwall + R + R * yp;             // Coordonnée y réelle
+    label = 6;                          // Étiquette pour ce bord
+}
+
+border c7(t = pi+pi/6, pi-pi/6) {  // Arc inférieur central (partie la plus profonde, angle: pi+pi/6 à pi-pi/6)
+    real ct = cos(t);                   // Calcul du cosinus de l'angle
+    real st = sin(t);                   // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;               // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha; // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha; // Coordonnée y de la pointe
+    x = xmur + delta * xp;              // Coordonnée x réelle (point le plus profond)
+    y = lwall + R + R * yp;             // Coordonnée y réelle
+    label = 7;                          // Étiquette pour ce bord
+}
+
+border c8(t = pi-pi/6, pi-pi/3) {  // Arc inférieur droit (angle: pi-pi/6 à pi-pi/3)
+    real ct = cos(t);                   // Calcul du cosinus de l'angle
+    real st = sin(t);                   // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;               // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha; // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha; // Coordonnée y de la pointe
+    x = xmur + delta * xp;              // Coordonnée x réelle
+    y = lwall + R + R * yp;             // Coordonnée y réelle
+    label = 8;                          // Étiquette pour ce bord
+}
+
+border c9(t = pi-pi/3, pi/2) {    // Arc supérieur droit de la pointe basse (angle: pi-pi/3 à pi/2)
+    real ct = cos(t);                   // Calcul du cosinus de l'angle
+    real st = sin(t);                   // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;               // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha; // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha; // Coordonnée y de la pointe
+    x = xmur + delta * xp;              // Coordonnée x réelle
+    y = lwall + R + R * yp;             // Coordonnée y réelle (fermeture de la pointe)
+    label = 9;                          // Étiquette pour ce bord
+}
 border c10 (t = xmur, L) { x = t; y = lwall + eta; label = 10; };             // Fin du mur bas
 
 // ==========================================
@@ -46,11 +111,64 @@ border c11 (t = lwall + eta, D - lwall - eta) { x = L; y = t; label = 11; }; // 
 // Mur du haut - côté droit
 // ==========================================
 border c12 (t = L, xmur) { x = t; y = D - lwall - eta; label = 12; };        // Début du mur haut
-border c13 (t =  3*pi/2, pi+pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 13; }; 
-border c14 (t =  pi+pi/3, pi+pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 14; }; 
-border c15 (t = pi+pi/6, pi-pi/6) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 15; }; 
-border c16 (t = pi-pi/6, pi-pi/3) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 16; }; 
-border c17 (t = pi-pi/3, pi/2) { x = delta*cos(t) + xmur; y = R*sin(t) + D - lwall - eta + R; label = 17; }; 
+// ==========================================
+// Pointe supérieure
+// ==========================================
+
+border c13(t = 3*pi/2, pi+pi/3) {  // Arc inférieur gauche de la pointe haute (angle: 3*pi/2 à pi+pi/3)
+    real ct = cos(t);                   // Calcul du cosinus de l'angle
+    real st = sin(t);                   // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;               // Même exposant que pour la pointe basse (pour cohérence)
+    real xp = sign(ct) * abs(ct)^alpha; // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha; // Coordonnée y de la pointe
+    x = xmur + delta * xp;              // Coordonnée x réelle
+    y = (D - lwall - eta) + R + R * yp; // Coordonnée y réelle avec centre vertical décalé vers le haut
+    label = 13;                         // Étiquette pour ce bord
+}
+
+border c14(t = pi+pi/3, pi+pi/6) {  // Arc central de la pointe haute (angle: pi+pi/3 à pi+pi/6)
+    real ct = cos(t);                     // Calcul du cosinus de l'angle
+    real st = sin(t);                     // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;                 // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha;   // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha;   // Coordonnée y de la pointe
+    x = xmur + delta * xp;                // Coordonnée x réelle
+    y = (D - lwall - eta) + R + R * yp;   // Coordonnée y réelle (mirroir de c6 mais décalée)
+    label = 14;                           // Étiquette pour ce bord
+}
+
+border c15(t = pi+pi/6, pi-pi/6) {  // Arc central (partie la plus profonde) de la pointe haute (angle: pi+pi/6 à pi-pi/6)
+    real ct = cos(t);                     // Calcul du cosinus de l'angle
+    real st = sin(t);                     // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;                 // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha;   // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha;   // Coordonnée y de la pointe
+    x = xmur + delta * xp;                // Coordonnée x réelle (profondeur maximale)
+    y = (D - lwall - eta) + R + R * yp;   // Coordonnée y réelle (mirroir de c7 mais décalée)
+    label = 15;                           // Étiquette pour ce bord
+}
+
+border c16(t = pi-pi/6, pi-pi/3) {  // Arc droit de la pointe haute (angle: pi-pi/6 à pi-pi/3)
+    real ct = cos(t);                     // Calcul du cosinus de l'angle
+    real st = sin(t);                     // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;                 // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha;   // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha;   // Coordonnée y de la pointe
+    x = xmur + delta * xp;                // Coordonnée x réelle
+    y = (D - lwall - eta) + R + R * yp;   // Coordonnée y réelle (mirroir de c8 mais décalée)
+    label = 16;                           // Étiquette pour ce bord
+}
+
+border c17(t = pi-pi/3, pi/2) {    // Arc supérieur droit de la pointe haute (angle: pi-pi/3 à pi/2)
+    real ct = cos(t);                     // Calcul du cosinus de l'angle
+    real st = sin(t);                     // Calcul du sinus de l'angle
+    real alpha = 2.0 / n;                 // Exposant de la pointe
+    real xp = sign(ct) * abs(ct)^alpha;   // Coordonnée x de la pointe
+    real yp = sign(st) * abs(st)^alpha;   // Coordonnée y de la pointe
+    x = xmur + delta * xp;                // Coordonnée x réelle
+    y = (D - lwall - eta) + R + R * yp;   // Coordonnée y réelle (fermeture de la pointe haute)
+    label = 17;                           // Étiquette pour ce bord
+}
 border c18 (t = xmur, L) { x = t; y = D - lwall; label = 18; };              // Fin du mur haut
 
 // ==========================================
@@ -74,129 +192,184 @@ border c22 (t = D, 0) { x = 0; y = t; label = 22; };      // Bord vertical gauch
 // ==========================================
 
 // ==========================================
-// Calcul des nombres de subdivisions (entiers)
+// Calcul des nombres de subdivisions (entiers) des bords rectilignes
 // ==========================================
-real eps = 0.01;
-real N = 100*L/eps; //soit h = 0.005 // pour c5 et c9
-N = 1000; // --- IGNORE ---
-real Npointe0 = 1500; // pour c5, c9, c13 et c17
-real Npointe1 = 1000; // pour c6, c8, c14 et c16
-real Npointe2 = 500; // pour c7 et c15
+real N = 5000;        // Nombre de mailles par unit\u00e9 de longueur (h = 1/N \u2248 0.0002, pour bords rectilignes)\nreal Npointe0 = 7500; // Densit\u00e9 fine: arcs c5, c9, c13, c17 (extr\u00e9mit\u00e9s des pointes)\nreal Npointe1 = 5500; // Densit\u00e9 moyenne: arcs c6, c8, c14, c16 (ar\u00e9as interm\u00e9diaires)\nreal Npointe2 = 2500; // Densit\u00e9 gross\u00e8re: arcs c7, c15 (sections cenrales des pointes)
+real Npointe0 = 5000; // pour c5, c9, c13 et c17
+real Npointe1 = 5000; // pour c6, c8, c14 et c16
+real Npointe2 = 2500; // pour c7 et c15
 
 // ==========================================
 // Discrétisation adaptative des arrondis
 // Formule de Ramanujan 
 // ==========================================
 
-real a = delta;   // grand demi-axe
-real b = R;      // petit demi-axe
+real a = delta;   // Grand demi-axe de la pointe
+real b = R;      // Petit demi-axe de la pointe
 
-// Paramètre de Ramanujan
-real h = pow(a-b,2)/pow(a+b,2);
+// Paramètre de Ramanujan pour le calcul du périmètre elliptique
+real h = pow(a-b,2)/pow(a+b,2); // Paramètre d'excentricité (h = ((a-b)/(a+b))^2)
 
-// Périmètre total ellipse 
-real Pellipse = pi*(a+b)*(1 + (3*h)/(10 + sqrt(4 - 3*h)));
+// Périmètre total d'une ellipse via la formule de Ramanujan 
+real Pellipse = pi*(a+b)*(1 + (3*h)/(10 + sqrt(4 - 3*h))); // Approximation précise du périmètre
 
-// Pas angulaire de chaque portion
-real dt1 = abs(3*pi/2 - (pi+pi/3));
-real dt2 = abs((pi+pi/3) - (pi+pi/6));
-real dt3 = abs((pi+pi/6) - (pi-pi/6));
-real dt4 = abs((pi-pi/6) - (pi-pi/3));
-real dt5 = abs((pi-pi/3) - pi/2);
+// Pas angulaire (amplitude angulaire) de chaque portion de la pointe
+real dt1 = abs(3*pi/2 - (pi+pi/3)); // Angle arc c5/c13 (différence entre 270° et 300°)
+real dt2 = abs((pi+pi/3) - (pi+pi/6)); // Angle arc c6/c14 (différence entre 300° et 330°)
+real dt3 = abs((pi+pi/6) - (pi-pi/6)); // Angle arc c7/c15 (différence entre 330° et 30°)
+real dt4 = abs((pi-pi/6) - (pi-pi/3)); // Angle arc c8/c16 (différence entre 30° et 60°)
+real dt5 = abs((pi-pi/3) - pi/2);     // Angle arc c9/c17 (différence entre 60° et 90°)
 
-// Longueur de chaque arc 
-real Lc1 = Pellipse * dt1 / (2*pi);
-real Lc2 = Pellipse * dt2 / (2*pi);
-real Lc3 = Pellipse * dt3 / (2*pi);
-real Lc4 = Pellipse * dt4 / (2*pi);
-real Lc5 = Pellipse * dt5 / (2*pi);
+// Longueur de chaque arc (longueur curviligne sur l'ellipse) 
+real Lc1 = Pellipse * dt1 / (2*pi);   // Longueur arc 1 (proportionnelle à l'angle)
+real Lc2 = Pellipse * dt2 / (2*pi);   // Longueur arc 2
+real Lc3 = Pellipse * dt3 / (2*pi);   // Longueur arc 3 (section centrale, plus longue)
+real Lc4 = Pellipse * dt4 / (2*pi);   // Longueur arc 4
+real Lc5 = Pellipse * dt5 / (2*pi);   // Longueur arc 5
 
-// Nombre de subdivisions proportionnel
-int n1 = ceil(Lc1 * Npointe0);
-int n2 = ceil(Lc2 * Npointe1);
-int n3 = ceil(Lc3 * Npointe2);
-int n4 = ceil(Lc4 * Npointe1);
-int n5 = ceil(Lc5 * Npointe0);
+// Nombre de subdivisions proportionnel à la longueur de l'arc (plus l'arc est long, plus il y a de points)
+int n1 = ceil(Lc1 * Npointe0); // Nombre de points pour arc c5/c13 (fins)
+int n2 = ceil(Lc2 * Npointe1); // Nombre de points pour arc c6/c14 (moyens)
+int n3 = ceil(Lc3 * Npointe2); // Nombre de points pour arc c7/c15 (grossiers, section centrale)
+int n4 = ceil(Lc4 * Npointe1); // Nombre de points pour arc c8/c16 (moyens)
+int n5 = ceil(Lc5 * Npointe0); // Nombre de points pour arc c9/c17 (fins)
 
+// ==========================================
+// Construction du maillage initial
+// ==========================================
+// Construction du maillage initial par assemblage de tous les bords
 mesh Tube2D = buildmesh(
-  c1(xmur*N) + c2((Lwall*N))                // bas
-  + c3(lwall*N) + c4(Lwall*N)                 // début mur bas
-  + c5(n1) + c6(n2) + c7(n3) + c8(n4) + c9(n5)   // arrondi bas 
-  + c10(Lwall*N) + c11((D-2*lwall-2*eta)*N)                  // fin mur bas + entre murs
-  + c12(Lwall*N)                          // début mur haut
-  + c13(n1) + c14(n2) + c15(n3) + c16(n4) + c17(n5)   // arrondi haut
-  + c18(Lwall*N) + c19(lwall*N)                   // fin mur haut + bord haut droit
-  + c20(Lwall*N) + c21(xmur*N) + c22(D*N)       // haut et gauche
+  c1(xmur*N) + c2((Lwall*N))                // Bord bas (gauche + droite avec adaptation de maille)
+  + c3(lwall*N) + c4(Lwall*N)               // Bord droit bas et début du mur bas
+  + c5(n1) + c6(n2) + c7(n3) + c8(n4) + c9(n5)   // Arrondi pointu bas (5 arcs avec discrétisation adaptée)
+  + c10(Lwall*N) + c11((D-2*lwall-2*eta)*N)                  // Fin du mur bas et bord vertical entre les deux murs
+  + c12(Lwall*N)                          // Début du mur haut
+  + c13(n1) + c14(n2) + c15(n3) + c16(n4) + c17(n5)   // Arrondi pointu haut (5 arcs avec discrétisation adaptée)
+  + c18(Lwall*N) + c19(lwall*N)           // Fin du mur haut et bord droit haut
+  + c20(Lwall*N) + c21(xmur*N) + c22(D*N) // Bord haut et bord gauche complet
 );
-plot(Tube2D, wait = 1);
-// Sauvegarde du maillage au format FreeFem
+plot(Tube2D, wait = 1, cmm="Maillage initial");
+
+// Sauvegarde du maillage final au format .mesh (compatible Gmsh)
 string filenameMesh = "Maillage_L"+ L + ".mesh";
-savemesh(Tube2D, filenameMesh);
+savemesh(Tube2D, filenameMesh);// Enregistrement du maillage adapté final
 
-// Sauvegarde des coordonnées des sommets
-
-string filenameNodes = "nodes"+ L+ ".txt";
-ofstream fileNodes(filenameNodes);
-// La boucle suivante parcourt tous les sommets du maillage.
-for (int i = 0; i < Tube2D.nv; i++) {
-    fileNodes << Tube2D(i).x << " " << Tube2D(i).y << endl;
-}
-// ==========================================
-// Résolution des équations de Stokes
-// ==========================================
+// ==============================================================
+// Paramètres de l'adaptation (calcul du gradient et raffinement)
+// ==============================================================
+int nbiter = 4;               // nombre d'itérations d'adaptation
+real err0 = 0.005;            // tolérance relative (plus petit = plus raffiné)
+real hmin = D/1000;           // taille minimale des arêtes
+real hmax = D/10;             // taille maximale des arêtes
 
 // Paramètres physiques
 real nu = 1;          // viscosité cinématique (à ajuster selon l'échelle)
-
 real debit = -2.78e-6; // 10 L/h
 real deltaP = -24*nu*L*debit/(D^3);
 real Pe = deltaP/2;
 real Ps = -deltaP/2;
 
-
 // Profil de vitesse parabolique (Poiseuille) à l'entrée et à la sortie
 // On suppose que la hauteur du canal est D, et la longueur L
 func uinx = deltaP * y * (D - y) / (4 * L); // vitesse horizontale
 
-// Espaces d'éléments finis (Taylor-Hood P2-P1)
-fespace Vh2(Tube2D, P2);   // pour les composantes de vitesse
-fespace Vh(Tube2D, P1);    // pour la pression
 
-Vh2 ux, uy;                // solutions vitesse
-Vh p;                      // solution pression
-Vh2 vx, vy;                // fonctions test vitesse
-Vh q;                      // fonction test pression
+// Définition des espaces d'éléments finis sur le maillage courant
+fespace Vh2(Tube2D, P2);      // Espace P2 pour la vitesse (polynômes de degré 2, plus précis)
+fespace Vh(Tube2D, P1);       // Espace P1 pour la pression (polynômes de degré 1, moins cher en calcul)
 
-// Problème variationnel de Stokes
+// Variables pour la solution du problème de Stokes
+Vh2 ux, uy;                   // Composantes horizontale et verticale de la vitesse (solutions)
+Vh p;                         // Champ de pression (solution)
 
-problem Stokes ([ux, uy, p], [vx, vy, q]) =
-    int2d(Tube2D)(
-        nu * (dx(ux)*dx(vx) + dy(ux)*dy(vx) + dx(uy)*dx(vy) + dy(uy)*dy(vy))
-        - p * (dx(vx) + dy(vy))
-        - q * (dx(ux) + dy(uy))
-        //- 1e-12 * p * q          // pénalisation pour fixer la constante de pression
-    )
-    // Conditions de Dirichlet :
-    // Entrée (label 22)
-    + on(22, ux=uinx, uy=0)
-    + on(22, p = Pe)
-    // Sortie (labels 3, 11, 19)
-    + on(11, ux=uinx, uy=0)
-    + on(11, p = Ps)
-    // Parois (tous les autres labels)
-    + on(1,2,4,5,6,7,8,9,10,12,13,14,15,16,17,18,20,21, ux=0, uy=0);
+// Variables pour les fonctions test (utilisées dans la formulation faible)
+Vh2 vx, vy;                   // Fonctions test pour la vitesse (mêmes espaces que ux, uy)
+Vh q;                         // Fonction test pour la pression (même espace que p)
 
-// Résolution
-Stokes;
+// Variable auxiliaire pour estimer l'erreur et piloter l'adaptation
+Vh indicator;                 // Indicateur d'erreur pour l'adaptation (norme du gradient de vitesse)
 
-// Affichage des résultats
-//plot(ux, value=1, fill=1, wait=1, cmm="Vitesse horizontale ux");
-//plot(uy, value=1, fill=1, wait=1, cmm="Vitesse verticale uy");
-plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
-//plot([ux,uy], fill=1, wait=1, cmm="Vitesse verticale [ux,uy]");
-//plot(p, value=1, fill=1, wait=1, cmm="Pression");
+// ==========================================
+// Boucle d'adaptation du maillage
+// ==========================================
+for (int iter = 0; iter < nbiter; iter++) {                    // Itération de adaptation (affinage du maillage)
+    cout << "\n - Iteration d'adaptation " << iter+1 << " / " << nbiter << " - " << endl; // Affichage itération courante
 
-// Sauvegarde des champs dans des fichiers texte (1 valeur par ligne)
+    // ==========================================
+    // Définition du problème de Stokes (équations Navier-Stokes stationnaires, viscosité dominante)
+    // ==========================================
+    problem Stokes ([ux, uy, p], [vx, vy, q]) =
+        int2d(Tube2D)(                  // Intégrale sur le domaine 2D
+            // Terme viscosité (déformation): ν * (∇u : ∇v)
+            nu * (dx(ux)*dx(vx) + dy(ux)*dy(vx) + dx(uy)*dx(vy) + dy(uy)*dy(vy))
+            // Terme pression-divergence: -p * div(v)
+            - p * (dx(vx) + dy(vy))
+            // Terme incompressibilité: -q * div(u)
+            - q * (dx(ux) + dy(uy))
+        )
+        // Conditions aux limites sur l'entrée (bord 22: gauche)
+        + on(22, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
+        + on(22, p = Pe)                // Pression: imposée à l'entrée
+        // Conditions aux limites sur la sortie (bord 11: droite, entre les murs)
+        + on(11, ux=uinx, uy=0)         // Vitesse: profil parabolique en x, zéro en y
+        + on(11, p = Ps)                // Pression: imposée à la sortie
+        // Conditions aux limites sur tous les murs (no-slip: vitesse = 0)
+        + on(1,2,4,5,6,7,8,9,10,12,13,14,15,16,17,18,20,21, ux=0, uy=0); // Murs: vitesse zéro
+
+    // Résolution du système linéaire de Stokes
+    Stokes;                             // Appel du solveur FreeFEM
+
+    // Calcul de l'indicateur d'erreur : norme du gradient de vitesse (pour adapter le maillage)
+    indicator = sqrt( dx(ux)^2 + dy(ux)^2 + dx(uy)^2 + dy(uy)^2 ); // ||∇u|| qui mesure le taux de déformation
+
+    // Visualisation de l'indicateur d'erreur pour suivi de convergence
+    plot(indicator, fill=1, wait=0, cmm="Indicateur d'erreur - iter "+iter); // Affichage des zones à raffiner
+
+    // Adaptation du maillage selon l'indicateur d'erreur
+    Tube2D = adaptmesh(Tube2D, indicator, err=err0, nbvx=200000, hmin=hmin, hmax=hmax); // Raffinage/déraffinage adaptatif
+
+    // Création des nouveaux espaces d'éléments finis sur le maillage adapté
+    fespace Vh2new(Tube2D, P2);        // Nouvel espace P2 pour la vitesse
+    fespace Vhnew(Tube2D, P1);         // Nouvel espace P1 pour la pression
+
+    // Interpolation des solutions anciennes sur les nouveaux espaces
+    Vh2new uxnew = ux;                 // Interpolation de ux ancien vers nouveau maillage
+    Vh2new uynew = uy;                 // Interpolation de uy ancien vers nouveau maillage
+    Vhnew pnew = p;                    // Interpolation de p ancien vers nouveau maillage
+
+    // Transfert des solutions interpolées vers les variables principales
+    ux = uxnew;                        // Mise à jour ux avec valeurs interpolées
+    uy = uynew;                        // Mise à jour uy avec valeurs interpolées
+    p = pnew;                          // Mise à jour p avec valeurs interpolées
+    
+    cout << "Nombre d'elements apres adaptation : " << Tube2D.nt << endl; // Affichage taille du nouveau maillage
+}
+
+// ==========================================
+// Affichage et visualisation des résultats finaux
+// ==========================================
+// Note: La résolution finale a déjà été effectuée lors de la dernière itération de la boucle
+
+// Affichage du maillage final adapté après toutes les itérations
+plot(Tube2D, wait=1, cmm="Maillage adapte final"); // Visualization du maillage final avec adaptation
+
+// Affichage du champ de vitesse final (vecteurs [ux, uy])
+plot([ux,uy], value=1, fill=1, wait=1, cmm="Vitesse finale [ux,uy]"); // Champ vectoriel de vitesse
+
+// Affichage du champ de pression final
+plot(p, value=1, fill=1, wait=1, cmm="Pression finale"); // Champ scalaire de pression
+
+// ==========================================
+// Sauvegarde du maillage final et des solutions
+// ==========================================
+
+
+// Sauvegarde des coordonnées (x, y) des sommets du maillage
+string filenameNodes = "nodes"+ L + ".txt";
+ofstream fileNodes(filenameNodes);    // Ouverture du fichier de sortie pour les nœuds
+for (int i = 0; i < Tube2D.nv; i++) { // Itération sur tous les nœuds du maillage
+    fileNodes << Tube2D(i).x << " " << Tube2D(i).y << endl; // Sauvegarde: abscisse et ordonnée
+}
 
 string filenameUx = "ux"+ L + ".txt";
 string filenameUy = "uy"+ L + ".txt";
