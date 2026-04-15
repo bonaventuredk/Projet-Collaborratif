@@ -371,7 +371,7 @@ if __name__ == "__main__":
         xmur_val = L_val - L_val / 8
     
         # Mode “fast scan” : moins de particules et moins de tours
-        n_particles_fast = {'Na+': 5, 'Cl-': 5, 'H20': 5}
+        n_particles_fast = {'Na+': 10, 'Cl-': 10, 'H20': 10}
         total_laps_fast = 1
     
         try:
@@ -470,9 +470,9 @@ if __name__ == "__main__":
     for lap in range(1, max_lap + 1):
         plt.figure(figsize=(10, 5))
         draw_domain(L_best)
-        if ff_points is not None:
-            plt.scatter(ff_points[:,0], ff_points[:,1],
-                        color='skyblue', s=10, label='Nœuds maillage')
+        #if ff_points is not None:
+        #    plt.scatter(ff_points[:,0], ff_points[:,1],
+        #                color='skyblue', s=10, label='Nœuds maillage')
 
         labels_done = {'Na+': False, 'Cl-': False, 'H20': False}
         for p in particles_best:
