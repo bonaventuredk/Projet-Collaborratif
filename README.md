@@ -1,6 +1,7 @@
 # Projet Dessalinisateur sans consommables – Séparation électromagnétique des ions
 
-Un groupe de processus qui s'occupe de la génération du maillage et de la résolution de l'écoulement (FreeFem++), et un autre pour la simulation des trajectoires et l'optimisation (Python).
+Réaliser la simulation et l'optimisation de la trajectoire des particules de Na+ et Cl- soumisent à l'intérieur du tube à un champ magnétique généré par une bobine située à une position stratégique.
+
 
 # Auteurs
 
