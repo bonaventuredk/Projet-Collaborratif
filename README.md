@@ -1,3 +1,13 @@
+## Auteurs:
+
+- Dohemeto Bonaventure
+
+- Drieux Audrey
+
+- Fisk Thomas
+
+
+
 Les fichiers dans le dossier Codes sont à exécuter dans l'ordre suivant:
 
     - Maillage2D
