@@ -11,6 +11,8 @@ Réaliser la simulation et l'optimisation de la trajectoire des particules de Na
 
 ---
 
+![Photo1](images/Figure 2026-04-15 194332.png)
+
 # Dessalinisateur électromagnétique – Simulation et optimisation
 
 Ce dépôt contient l'ensemble des codes permettant de simuler un **dessalinisateur sans consommables** qui sépare les ions Na⁺ et Cl⁻ par un champ magnétique.  
@@ -37,6 +39,8 @@ Les particules sont recirculées plusieurs fois (multi‑tours) pour améliorer 
 <span style="color:red;">🔴🔴🔴 **IMPORTANT** 🔴🔴🔴</span> – Avant de lancer l’optimisation, vérifiez que les fichiers FreeFem (`nodes.txt`, `ux.txt`, `uy.txt`) sont bien générés. Le script `SolveParticuleOptimiser.py` utilise le parallélisme (`ProcessPoolExecutor`) – adaptez le nombre de workers à votre machine.
 
 ---
+![Photo1](images/Figure 2026-04-15 194501.png)
+![Photo1](images/Figure 2026-04-15 194505.png)
 
 ## Description du workflow
 
