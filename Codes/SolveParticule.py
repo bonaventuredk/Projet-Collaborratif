@@ -560,7 +560,7 @@ if __name__ == "__main__":
     # Paramètres de simulation (à modifier au besoin)
     
     dt = 1e-3                     # Pas de temps (s)
-    n1 = 100                       # Nombre de particules neutres (H20)
+    n1 = 20                       # Nombre de particules neutres (H20)
     n2 = 100                        # Nombre de particules positives (Na+)
     n3 = 100                        # Nombre de particules négatives (Cl-)
     total_laps = 2                 # Nombre maximum de tours à simuler
