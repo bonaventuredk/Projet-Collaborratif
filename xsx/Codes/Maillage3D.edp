@@ -1,4 +1,14 @@
-load "msh3"
+/////////////////////////////////////////////////////////
+// Maillage 3D
+/////////////////////////////////////////////////////////
+
+// Groupe 2: 
+// --------
+    // 1. DOHEMETO Bonaventure
+    // 2. DRIEUX Audrey
+    // 3. FISK Thomas
+
+load "msh3" // Charger le module msh3 pour la génération de maillage 3D
 
 
 // Paramètres géométriques du cylindre
@@ -12,15 +22,15 @@ int Nz = int(L/hi) + 1; // Nombre de couches en z
 real theta0 = 20 * pi/180; // 10 degrés en radians 
 
 // Points de départ et d'arrivée pour la courbe interne
-real xA = R*cos(theta0);
-real yA = R*sin(theta0);
-real xB = R*cos(pi - theta0); 
-real yB = R*sin(pi - theta0); 
+real xA = R*cos(theta0); // Coordonnée X du point de départ A pour la courbe interne
+real yA = R*sin(theta0); // Coordonnée Y du point de départ A
+real xB = R*cos(pi - theta0); // Coordonnée X du point B
+real yB = R*sin(pi - theta0); // Coordonnée Y du point B
 
-real xC = R*cos(pi + theta0);
-real yC = R*sin(pi + theta0);
-real xD = R*cos( - theta0); 
-real yD = R*sin(- theta0); 
+real xC = R*cos(pi + theta0); // Coordonnée X du point C
+real yC = R*sin(pi + theta0); // Coordonnée Y du point C
+real xD = R*cos( - theta0); // Coordonnée X du point D
+real yD = R*sin(- theta0); // Coordonnée Y du point D 
 
 // Paramètres de discrétisation pour les arcs
 int Nc = 2 * int(pi * R / hi); // Nombre total de segments pour un cercle complet
@@ -46,9 +56,9 @@ border CourbeAB(t=0,1) {
 }
 // De B à A (pour la région supérieure)
 border CourbeBA(t=1,0) {
-    x = xA + (xB - xA)*t;
-    y = yA + A * sin(pi*t);
-    label = 30;
+    x = xA + (xB - xA)*t; // Interpolation linéaire en x de B à A
+    y = yA + A * sin(pi*t); // Bosse sinusoïdale (positive)
+    label = 30; // Étiquette d'interface
 }
 border CourbeCD(t=0,1) {
     x = xC + (xD - xC)*t;          // Interpolation linéaire en x
@@ -57,51 +67,51 @@ border CourbeCD(t=0,1) {
 }
 // De B à A (pour la région supérieure)
 border CourbeDC(t=1,0) {
-    x = xC + (xD - xC)*t;
-    y = yC + B * sin(pi*t);
-    label = 30;
+    x = xC + (xD - xC)*t; // Interpolation linéaire en x de D à C
+    y = yC + B * sin(pi*t); // Bosse sinusoïdale (négative)
+    label = 30; // Étiquette d'interface
 }
 // Fonctions de transformation 2D utilisées pour déplacer et recaler un maillage.
 // Ici on applique une rotation de pi radians (180°) autour de l'origine.
-func phi1=x * cos(pi) + y * sin(pi);
-func phi2=-x * sin(pi) + y * cos(pi);
+func phi1=x * cos(pi) + y * sin(pi); // Transformation de rotation pour la coordonnée x (180 degrés)
+func phi2=-x * sin(pi) + y * cos(pi); // Transformation de rotation pour la coordonnée y (180 degrés)
 
 // --- Maillages 2D des deux régions ---
 
 // Région supérieure (au-dessus de la courbe)
-mesh ThTop = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe));
-mesh ThBas = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe));
+mesh ThTop = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe)); // Construire le maillage de la région supérieure
+mesh ThBas = buildmesh(arcSup(Nsup) + CourbeBA(Ncourbe)); // Construire le maillage de base pour la transformation
 // On applique une transformation à ThBas pour créer un maillage symétrique ou décalé avec phi1, phi2.
-ThBas = movemesh(ThBas, [phi1, phi2]);
+ThBas = movemesh(ThBas, [phi1, phi2]); // Appliquer la transformation de rotation à ThBas
 //ThTop = trunc(ThTop, region == 2);
 
 // Région inférieure (en dessous de la courbe)
 // Arcs inférieurs + courbes internes forment la partie inférieure du demi-cylindre.
-mesh ThBottom = buildmesh(arcInf1(Ninf) + arcInf2(Ninf) + CourbeAB(Ncourbe) + CourbeCD(Ncourbe));
+mesh ThBottom = buildmesh(arcInf1(Ninf) + arcInf2(Ninf) + CourbeAB(Ncourbe) + CourbeCD(Ncourbe)); // Construire le maillage de la région inférieure
 
 // Vérification des maillages 2D
-plot(ThTop, wait=1, cmm="Region superieure (2D)");
-plot(ThBas, wait=1, cmm="Region superieure (2D)");
-plot(ThBottom, wait=1, cmm="Region inferieure (2D)");
+plot(ThTop, wait=1, cmm="Region superieure (2D)"); // Tracer le maillage supérieur
+plot(ThBas, wait=1, cmm="Region superieure (2D)"); // Tracer le maillage de base transformé
+plot(ThBottom, wait=1, cmm="Region inferieure (2D)"); // Tracer le maillage inférieur
 
-real d = 0.1; 
+real d = 0.1; // Paramètre de distance quelconque
 
-real r = R;
-real peri = 2*pi*r; 
+real r = R; // Rayon pour le disque
+real peri = 2*pi*r; // Perimetre du disque 
 
-mesh ThDisque;
-border disque (t= 0,2*pi){x = r * cos (t); y = r* sin (t); label = 1;}; 
-int N = peri / (hi) + 1 ;	
-ThDisque = buildmesh (disque(N));
+mesh ThDisque; // Déclarer la variable de maillage du disque
+border disque (t= 0,2*pi){x = r * cos (t); y = r* sin (t); label = 1;}; // Définir la frontière du disque
+int N = peri / (hi) + 1 ; // Calculer le nombre de segments pour le maillage du disque
+ThDisque = buildmesh (disque(N)); // Construire le maillage du disque
  
 
-real z0 = 0, z1 = 4*L/5;
+real z0 = 0, z1 = 4*L/5; // Définir les limites z pour la section du cylindre
 
-int[int] rup = [0, 10]; 
+int[int] rup = [0, 10]; // Étiquettes pour les régions supérieures
  
-int[int] rdown = [0, 20];
+int[int] rdown = [0, 20]; // Étiquettes pour les régions inférieures
 
-mesh3 ThCylindre = buildlayers(ThDisque, Nz, zbound=[z0,z1], labelup = rup, labeldown = rdown);
+mesh3 ThCylindre = buildlayers(ThDisque, Nz, zbound=[z0,z1], labelup = rup, labeldown = rdown); // Construire le maillage 3D du cylindre à partir du disque
 
 // --- Extrusion 3D ---
 
@@ -113,7 +123,7 @@ int[int] labelDown = [200, 200]; // Face inférieure (z = 0)
 // buildlayers crée un maillage 3D par empilement de couches à partir du maillage 2D fourni.
 // zbound donne la hauteur de la section extrudée.
 mesh3 ThTopCyl    = buildlayers(ThTop, Nz, zbound=[4*L/5, L],
-                                labelup=labelUp, labeldown=labelDown);
+                                labelup=labelUp, labeldown=labelDown); // Extruder le maillage 2D supérieur en 3D
 mesh3 ThBottomCyl = buildlayers(ThBottom, Nz, zbound=[4*L/5, L],
                                 labelup=labelUp, labeldown=labelDown);
 mesh3 ThBasCyl    = buildlayers(ThBas, Nz, zbound=[4*L/5, L],

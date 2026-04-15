@@ -8,7 +8,7 @@
     // 2. DRIEUX Audrey
     // 3. FISK Thomas
 
-include "Maillage2D.edp"
+include "Maillage2D.edp" // On importe toutes les données du script Maillage2D.edp
 
 // ==============================================================
 // Paramètres de l'adaptation (calcul du gradient et raffinement)
@@ -29,7 +29,7 @@ real Ps = -deltaP/2;
 
 // Profil de vitesse parabolique (Poiseuille) à l'entrée et à la sortie(opposé)
 // On suppose que la hauteur du canal est D, et la longueur L
-func uinx = deltaP * y * (D - y) / (4 * nu * L); // vitesse horizontale
+func uinx = deltaP * y * (D - y) / (2 * nu * L); // vitesse horizontale : ici on met 2 au dénominateur parceque notre tube va de 0 à L
 
 // Définition des espaces d'éléments finis sur le maillage courant
 fespace Vh2(Tube2D, P2);      // Espace P2 pour la vitesse (polynômes de degré 2, plus précis)
